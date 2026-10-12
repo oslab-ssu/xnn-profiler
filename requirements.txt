@@ -1,0 +1,4 @@
+torch>=2.0
+snntorch>=0.9
+torchvision>=0.15
+numpy>=1.24
