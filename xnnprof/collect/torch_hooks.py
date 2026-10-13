@@ -30,6 +30,15 @@ def macs_of(module, x, out) -> int:
     return 0
 
 
+def _fan(module) -> dict:
+    import torch.nn as nn
+    if isinstance(module, nn.Linear):
+        return {"in": module.in_features, "out": module.out_features}
+    if isinstance(module, nn.Conv2d):
+        return {"in": module.in_channels, "out": module.out_channels}
+    return {}
+
+
 def looks_binary(x) -> bool:
     import torch
     if x is None or not torch.is_tensor(x) or x.numel() == 0:
@@ -101,6 +110,8 @@ class TorchHookCollector(Collector):
             a.setdefault("self_time_us", 0.0)
             a.setdefault("spike_driven", False)
             a.setdefault("state_bytes", 0)
+            if "fan" not in a:
+                a["fan"] = _fan(mod)
 
             x = inputs[0] if inputs and torch.is_tensor(inputs[0]) else None
             if x is not None:
@@ -154,7 +165,8 @@ class TorchHookCollector(Collector):
                 useful_macs=int(a.get("macs", 0) * nz) if nz is not None else None,
                 input_nonzero_fraction=nz,
                 self_time_us=round(a.get("self_time_us", 0.0), 3),
-                state_bytes=a.get("state_bytes", 0)))
+                state_bytes=a.get("state_bytes", 0),
+                extra={"fan": a.get("fan", {})}))
         trace.layers.sort(key=lambda l: -l.macs)
         trace.regions.extend(self._regions)
 

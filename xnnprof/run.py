@@ -13,6 +13,7 @@ from .collect.torch_hooks import TorchHookCollector
 from .collect.torch_prof import TorchProfilerCollector
 from .emit import trace_json
 from .metrics import headroom
+from .synops import annotate as annotate_synops
 from .schema import Trace
 
 
@@ -68,6 +69,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     for c in extra:
         trace.sources.append(c.collect(trace))
 
+    annotate_synops(trace)
     trace.headroom = headroom(trace)
     trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"))
     return trace

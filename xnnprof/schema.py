@@ -48,6 +48,9 @@ class SpikeRef:
     timesteps: int = 0
     batch: int = 0
     neurons: int = 0
+    fanout: Optional[int] = None
+    fanout_from: str = ""
+    synops: Optional[int] = None
     metrics: dict[str, Any] = field(default_factory=dict)
 
 

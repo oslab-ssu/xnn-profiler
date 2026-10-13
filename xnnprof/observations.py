@@ -52,6 +52,8 @@ def derive_spike_metrics(array) -> dict[str, Any]:
     rates = a.mean(axis=(0, 1))
     first = np.where(a.any(axis=0), a.argmax(axis=0), -1)
     fired = first[first >= 0]
+    per_neuron = a.sum(axis=(0, 1)).reshape(-1).astype(int)
+    top = np.argsort(-per_neuron)[:10]
 
     return {
         "timesteps": int(a.shape[0]),
@@ -64,6 +66,10 @@ def derive_spike_metrics(array) -> dict[str, Any]:
         "saturated_fraction": float((rates == 1).mean()),
         "first_spike_step_mean": float(fired.mean()) if fired.size else None,
         "never_fired_fraction": float((first < 0).mean()),
+        "spikes_per_neuron": (per_neuron.tolist() if per_neuron.size <= 4096
+                              else None),
+        "spikes_per_neuron_truncated": bool(per_neuron.size > 4096),
+        "top_neurons": [{"neuron": int(i), "spikes": int(per_neuron[i])} for i in top],
     }
 
 

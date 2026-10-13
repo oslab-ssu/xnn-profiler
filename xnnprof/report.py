@@ -39,6 +39,16 @@ def summary(trace: Trace) -> str:
                    f"{s.reason}")
     for sp in trace.spikes:
         m = sp.metrics
+        if sp.synops is not None:
+            syn = f"SynOps {sp.synops:,} (fan-out {sp.fanout} <- {sp.fanout_from})"
+        elif sp.fanout_from == "output":
+            syn = "SynOps — (출력층, fan-out 없음)"
+        else:
+            syn = "SynOps — (소비자 미식별)"
         out.append(f"  spike {sp.layer_id:10s} 발화율 {m['mean_rate']:.4f}  "
-                   f"dead {m['dead_fraction']:.4f}  sat {m['saturated_fraction']:.4f}")
+                   f"dead {m['dead_fraction']:.4f}  sat {m['saturated_fraction']:.4f}  {syn}")
+        top = m.get("top_neurons") or []
+        if top:
+            s = "  ".join(f"#{d['neuron']}:{d['spikes']}" for d in top[:5])
+            out.append(f"      상위 뉴런  {s}")
     return "\n".join(out)
