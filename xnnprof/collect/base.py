@@ -8,6 +8,7 @@ from ..schema import Source, Trace
 
 REGION = "region"
 LAYER = "layer"
+MODEL_GLOBAL = "model-global"
 PROCESS_GLOBAL = "process-global"
 STATIC_NAME = "static-name"
 

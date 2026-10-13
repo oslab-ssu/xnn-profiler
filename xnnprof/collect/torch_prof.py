@@ -1,7 +1,10 @@
-"""PyTorch Profiler를 구간에 귀속시키는 수집기.
+"""PyTorch Profiler 수집기.
 
-key_averages()는 타임스텝 T회 호출을 합산해버린다. 여기서는 raw 이벤트를
-hook이 만든 구간의 시각 범위로 잘라 (layer_id, timestep)에 귀속한다.
+⚠ 아직 구간(region)에 귀속하지 않는다. key_averages()는 T회 호출을 이미
+합산한 값이라 레이어·타임스텝으로 되돌릴 수 없고, raw 이벤트를 쓰려면
+프로파일러 타임베이스와 hook의 perf_counter 원점을 맞춰야 한다. 그 전까지는
+attribution을 model-global로 선언한다 — 실제보다 세밀하게 선언하면
+sources의 의미가 없어진다.
 """
 
 from __future__ import annotations
@@ -9,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..schema import Trace
-from .base import Collector, REGION
+from .base import Collector, MODEL_GLOBAL
 
 PSEUDO = ("ProfilerStep",)
 
@@ -20,7 +23,7 @@ def is_pseudo(key: str) -> bool:
 
 class TorchProfilerCollector(Collector):
     name = "torch_profiler"
-    attribution = REGION
+    attribution = MODEL_GLOBAL
     capabilities = ("op_time", "op_memory", "shapes", "call_count")
 
     def __init__(self, prof=None):
@@ -51,5 +54,6 @@ class TorchProfilerCollector(Collector):
                 "cpu_mem_bytes": int(getattr(ev, "self_cpu_memory_usage", 0) or 0),
             })
         total = sum(o["self_time_us"] for o in ops)
-        return self.declare("captured", op_count=len(ops),
-                            sum_self_time_us=round(total, 3), ops=ops)
+        return self.declare(
+            "partial", "구간 귀속 미구현 — op 단위 집계만. 공통 시간 원점 필요",
+            op_count=len(ops), sum_self_time_us=round(total, 3), ops=ops)

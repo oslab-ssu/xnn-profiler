@@ -65,7 +65,8 @@ def derive_spike_metrics(array) -> dict[str, Any]:
         "dead_fraction": float((rates == 0).mean()),
         "saturated_fraction": float((rates == 1).mean()),
         "first_spike_step_mean": float(fired.mean()) if fired.size else None,
-        "never_fired_fraction": float((first < 0).mean()),
+        "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+        "never_fired_sample_neuron_fraction": float((first < 0).mean()),
         "spikes_per_neuron": (per_neuron.tolist() if per_neuron.size <= 4096
                               else None),
         "spikes_per_neuron_truncated": bool(per_neuron.size > 4096),
