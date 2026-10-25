@@ -5,9 +5,10 @@
 부모를 거슬러 올라가 가장 가까운 라벨을 찾으면 그 연산이 어느 구간에 속하는지가
 정해진다. 시계 원점을 맞추거나 시각 포함 여부를 판정할 필요가 없다.
 
-구간별로 CPU self time뿐 아니라 GPU 커널 시간과 발행한 GPU op 수도 함께 모은다.
-둘의 차이가 그 구간에서 GPU가 논 시간이다 — 연산량이 아니라 op 발행 횟수에
-묶인 레이어가 여기서 드러난다.
+구간별로 호스트 동기화를 유발하는 op도 따로 집계한다. `.item()`처럼 GPU 값을
+파이썬 값으로 꺼내는 호출은 CPU가 GPU 큐를 전부 비울 때까지 멈추게 하므로,
+연산량과 무관하게 그 구간의 시간을 지배한다. 어느 레이어의 어느 타임스텝에서
+발생했는지는 통합 키로 묶어야 드러난다.
 
 `key_averages()`는 T회 호출을 이미 합산한 값이라 레이어·타임스텝으로 되돌릴 수
 없으므로 쓰지 않는다. 라벨이 없는 실행(`emit_labels=False`, 또는 hook이 닿지
@@ -28,6 +29,13 @@ LABEL = re.compile(r"^(?P<layer>.+)@t(?P<step>\d+)$")
 PSEUDO = ("ProfilerStep",)
 MAX_DEPTH = 64
 INSTRUMENT = ("__instrument__", -1)
+
+# 호스트 동기화를 유발하는 op. GPU 값을 파이썬 값으로 꺼내는 호출들이다.
+SYNC_OPS = frozenset({
+    "aten::item", "aten::_local_scalar_dense", "aten::is_nonzero",
+    "aten::nonzero", "aten::equal", "aten::allclose", "aten::_assert_async",
+    "cudaStreamSynchronize", "cudaDeviceSynchronize",
+})
 
 
 def is_pseudo(key: str) -> bool:
@@ -77,8 +85,6 @@ class TorchProfilerCollector(Collector):
 
         per_key: dict[tuple[str, int], dict[str, float]] = defaultdict(
             lambda: defaultdict(float))
-        gpu_time: dict[tuple[str, int], float] = defaultdict(float)
-        gpu_ops: dict[tuple[str, int], int] = defaultdict(int)
         orphan: dict[str, float] = defaultdict(float)
         orphan_count = 0
         instrument: dict[str, float] = defaultdict(float)
@@ -88,25 +94,16 @@ class TorchProfilerCollector(Collector):
             if is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL:
                 continue                             # 라벨 자체는 연산이 아니다
             self_us = float(getattr(ev, "self_cpu_time_total", 0.0) or 0.0)
-            dev_us = getattr(ev, "self_device_time_total", None)
-            if dev_us is None:                       # torch 2.4 이전
-                dev_us = getattr(ev, "self_cuda_time_total", 0.0)
-            dev_us = float(dev_us or 0.0)
-            n_kern = len(getattr(ev, "kernels", ()) or ())
-            if self_us <= 0 and dev_us <= 0 and not n_kern:
+            if self_us <= 0:
                 continue
             key = owner_of(ev)
             if key == INSTRUMENT:
                 instrument[op] += self_us
             elif key is None:
-                if self_us > 0:
-                    orphan[op] += self_us
-                    orphan_count += 1
+                orphan[op] += self_us
+                orphan_count += 1
             else:
-                if self_us > 0:
-                    per_key[key][op] += self_us
-                gpu_time[key] += dev_us
-                gpu_ops[key] += n_kern
+                per_key[key][op] += self_us
 
         attributed = sum(sum(d.values()) for d in per_key.values())
         unattributed = sum(orphan.values())
@@ -120,8 +117,6 @@ class TorchProfilerCollector(Collector):
                 continue
             r.ops = {k: round(v, 3) for k, v in
                      sorted(ops.items(), key=lambda kv: -kv[1])}
-            r.gpu_us = round(gpu_time[(lid, step)], 3)
-            r.gpu_ops = gpu_ops[(lid, step)]
             matched += 1
 
         top_orphan = sorted(orphan.items(), key=lambda kv: -kv[1])[:10]
@@ -140,8 +135,8 @@ class TorchProfilerCollector(Collector):
             unattributed_events=orphan_count,
             unattributed_top=[{"op": k, "self_time_us": round(v, 3)}
                               for k, v in top_orphan],
-            gpu_us=round(sum(gpu_time.values()), 3),
-            gpu_ops=sum(gpu_ops.values()),
+            sync_us=round(sum(v for ops in per_key.values()
+                               for k, v in ops.items() if k in SYNC_OPS), 3),
             instrument_us=round(instrument_us, 3),
             instrument_top=[{"op": k, "self_time_us": round(v, 3)}
                             for k, v in top_inst])

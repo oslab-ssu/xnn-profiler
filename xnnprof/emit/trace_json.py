@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ..collect.torch_prof import SYNC_OPS
 from ..schema import Trace
 
 
@@ -55,10 +56,10 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
             })
         if r.ops:
             args["ops_self_time_us"] = r.ops
-        if r.gpu_ops or r.gpu_us:
-            args["gpu_us"] = r.gpu_us
-            args["gpu_ops"] = r.gpu_ops
-            args["gpu_idle_us"] = round(r.dur_us - r.gpu_us, 3)
+            sync = sum(v for k, v in r.ops.items() if k in SYNC_OPS)
+            if sync:
+                args["host_sync_us"] = round(sync, 3)
+                args["host_sync_fraction"] = round(sync / r.dur_us, 4) if r.dur_us else None
         name = (f"{r.layer_id}@t{r.timestep}" if r.timestep is not None else r.layer_id)
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),

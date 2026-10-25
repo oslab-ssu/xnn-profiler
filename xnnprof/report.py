@@ -24,21 +24,33 @@ def summary(trace: Trace) -> str:
         out.append(f"{l.layer_id:22s} {dom:12s} {l.calls:4d} {l.macs:14,} "
                    f"{l.macs/e:6.1%} {st:>14s} {l.state_bytes:9,}")
 
-    gpu = [r for r in trace.regions if r.gpu_ops or r.gpu_us]
-    if gpu:
-        agg: dict[str, list[float]] = {}
-        for r in gpu:
-            a = agg.setdefault(r.layer_id, [0.0, 0.0, 0.0])
-            a[0] += r.gpu_ops
-            a[1] += r.gpu_us
-            a[2] += r.dur_us
+    from .collect.torch_prof import SYNC_OPS
+
+    sync: dict[str, list[float]] = {}
+    for r in trace.regions:
+        hit = sum(v for k, v in (r.ops or {}).items() if k in SYNC_OPS)
+        if not hit:
+            continue
+        a = sync.setdefault(r.layer_id, [0.0, 0.0, 0.0])
+        a[0] += hit
+        a[1] += r.dur_us
+        a[2] += 1
+    if sync:
         out.append("")
-        out.append(f"{'레이어':22s} {'구간':>4s} {'GPU op/호출':>11s} "
-                   f"{'GPU 커널(us)':>13s} {'구간(us)':>10s} {'GPU 가동률':>10s}")
-        for lid, (ops, gus, dur) in sorted(agg.items(), key=lambda kv: -kv[1][2]):
-            n = sum(1 for r in gpu if r.layer_id == lid)
-            out.append(f"{lid:22s} {n:4d} {ops / n:11.1f} {gus:13,.1f} "
-                       f"{dur:10,.1f} {(gus / dur if dur else 0):10.1%}")
+        out.append("호스트 동기화 — GPU 값을 파이썬 값으로 꺼내 CPU가 GPU를 기다린 시간")
+        out.append(f"{'레이어':22s} {'구간':>4s} {'동기화(us)':>11s} "
+                   f"{'구간(us)':>11s} {'구간 내 비중':>12s} {'유발 op':>26s}")
+        for lid, (hit, dur, n) in sorted(sync.items(), key=lambda kv: -kv[1][0]):
+            tops: dict[str, float] = {}
+            for r in trace.regions:
+                if r.layer_id != lid:
+                    continue
+                for k, v in (r.ops or {}).items():
+                    if k in SYNC_OPS:
+                        tops[k] = tops.get(k, 0.0) + v
+            top = max(tops, key=tops.get) if tops else "-"
+            out.append(f"{lid:22s} {int(n):4d} {hit:11,.1f} {dur:11,.1f} "
+                       f"{hit / dur if dur else 0:11.1%} {top:>26s}")
 
     m = trace.metrics
     if m:

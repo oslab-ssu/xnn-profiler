@@ -1,0 +1,156 @@
+{
+  "layer_id": "lif1",
+  "timesteps": 10,
+  "batch": 64,
+  "neurons": 64,
+  "path": "out-gpu\\repeated_dnn_snn\\spikes\\spikes_T10_lif1.npy",
+  "sha256": "987cc67be482228ffeccae21c825bbc0636395d89f29407bf443dcfa97054e79",
+  "quantity": "spikes",
+  "axes": [
+    "time",
+    "batch",
+    "neurons"
+  ],
+  "dt": null,
+  "dt_units": "abstract-step",
+  "state_reset": "subtract",
+  "encoding": "direct",
+  "threshold": null,
+  "beta": null,
+  "metrics": {
+    "timesteps": 10,
+    "batch": 64,
+    "neurons": 64,
+    "spikes": 3696,
+    "mean_rate": 0.090234375,
+    "per_timestep_rate": [
+      0.00048828125,
+      0.060302734375,
+      0.09912109375,
+      0.100341796875,
+      0.10009765625,
+      0.123291015625,
+      0.091064453125,
+      0.1162109375,
+      0.101806640625,
+      0.109619140625
+    ],
+    "dead_fraction": 0.0625,
+    "saturated_fraction": 0.0,
+    "first_spike_step_mean": 3.5512295081967213,
+    "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+    "never_fired_sample_neuron_fraction": 0.642578125,
+    "spikes_per_neuron": [
+      47,
+      75,
+      128,
+      37,
+      10,
+      87,
+      26,
+      19,
+      56,
+      30,
+      2,
+      30,
+      32,
+      36,
+      0,
+      8,
+      227,
+      155,
+      8,
+      0,
+      1,
+      30,
+      4,
+      43,
+      0,
+      249,
+      9,
+      14,
+      68,
+      28,
+      14,
+      5,
+      40,
+      4,
+      190,
+      1,
+      66,
+      128,
+      8,
+      22,
+      94,
+      270,
+      80,
+      3,
+      145,
+      2,
+      57,
+      68,
+      1,
+      175,
+      59,
+      158,
+      5,
+      32,
+      213,
+      156,
+      84,
+      2,
+      0,
+      58,
+      51,
+      1,
+      1,
+      44
+    ],
+    "spikes_per_neuron_truncated": false,
+    "top_neurons": [
+      {
+        "neuron": 41,
+        "spikes": 270
+      },
+      {
+        "neuron": 25,
+        "spikes": 249
+      },
+      {
+        "neuron": 16,
+        "spikes": 227
+      },
+      {
+        "neuron": 54,
+        "spikes": 213
+      },
+      {
+        "neuron": 34,
+        "spikes": 190
+      },
+      {
+        "neuron": 49,
+        "spikes": 175
+      },
+      {
+        "neuron": 51,
+        "spikes": 158
+      },
+      {
+        "neuron": 55,
+        "spikes": 156
+      },
+      {
+        "neuron": 17,
+        "spikes": 155
+      },
+      {
+        "neuron": 44,
+        "spikes": 145
+      }
+    ]
+  },
+  "notes": [],
+  "schema": "ssu.snn.observation",
+  "version": 1
+}

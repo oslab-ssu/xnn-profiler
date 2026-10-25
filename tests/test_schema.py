@@ -96,7 +96,7 @@ def test_layer_id_normalization():
 def test_trace_event_format():
     t = sample()
     t.regions[0].ops = {"aten::addmm": 90.0, "aten::linear": 10.0}
-    t.regions[0].gpu_us, t.regions[0].gpu_ops = 1.5, 2
+    t.regions[1].ops = {"aten::_local_scalar_dense": 4.0, "aten::mul": 1.0}
     d = trace_json.build(t)
     ev = d["traceEvents"]
     assert d["displayTimeUnit"] == "ms"
@@ -108,10 +108,12 @@ def test_trace_event_format():
     assert len(fc2) == 4 and all(e["args"]["macs_total"] == 400 for e in fc2)
     assert all(e["args"]["spike_driven"] is True for e in fc2)
     with_ops = [e for e in x if "ops_self_time_us" in e["args"]]
-    assert len(with_ops) == 1 and with_ops[0]["args"]["ops_self_time_us"]["aten::addmm"] == 90.0
-    a = with_ops[0]["args"]
-    assert a["gpu_ops"] == 2 and a["gpu_us"] == 1.5
-    assert a["gpu_idle_us"] == 3.5, "구간 5us 중 GPU가 1.5us만 돌았다"
+    assert len(with_ops) == 2
+    assert with_ops[0]["args"]["ops_self_time_us"]["aten::addmm"] == 90.0
+    syncd = [e for e in x if "host_sync_us" in e["args"]]
+    assert len(syncd) == 1, "동기화 op이 있는 구간만 표시된다"
+    assert syncd[0]["args"]["host_sync_us"] == 4.0
+    assert syncd[0]["args"]["host_sync_fraction"] == 0.8, "구간 5us 중 4us가 동기화"
     counters = [e for e in ev if e["ph"] == "C"]
     assert len(counters) == 4 and counters[0]["args"]["rate"] == 0.0
     names = {e["args"]["name"] for e in ev if e.get("name") == "thread_name"}
@@ -124,7 +126,6 @@ def test_trace_event_format():
 def test_roundtrip():
     t = sample()
     t.regions[0].ops = {"aten::addmm": 90.0}
-    t.regions[0].gpu_us, t.regions[0].gpu_ops = 1.5, 2
     with tempfile.TemporaryDirectory() as tmp:
         p = os.path.join(tmp, "t.json")
         t.save(p)
@@ -133,7 +134,6 @@ def test_roundtrip():
     assert [l.layer_id for l in back.layers] == [l.layer_id for l in t.layers]
     assert back.regions[2].timestep == 2
     assert back.regions[0].ops == {"aten::addmm": 90.0}
-    assert back.regions[0].gpu_ops == 2 and back.regions[0].gpu_us == 1.5
     assert back.region("fc2", 2) is not None
     assert back.spikes[0].metrics["mean_rate"] == 0.25
     assert back.metrics["output_latency"]["first_spike_step"] == 2

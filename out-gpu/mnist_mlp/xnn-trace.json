@@ -1,0 +1,340 @@
+{
+  "traceEvents": [
+    {
+      "ph": "M",
+      "name": "process_name",
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "name": "xnn mnist_mlp T=10 batch=64"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "name": "1:Linear [dense]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "sort_index": 1
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "name": "3:Linear [dense]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "sort_index": 2
+      }
+    },
+    {
+      "ph": "X",
+      "name": "1:Linear@t0",
+      "cat": "dense",
+      "ts": 750.2,
+      "dur": 114.1,
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "timestep": 0,
+        "op_type": "Linear",
+        "macs_total": 50176000,
+        "spike_driven": false,
+        "in_loop": false,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 77.196,
+          "aten::linear": 8.0,
+          "aten::t": 5.799,
+          "aten::transpose": 4.9,
+          "aten::empty": 3.599,
+          "aten::as_strided": 2.0
+        },
+        "gpu_us": 65.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 49.1
+      }
+    },
+    {
+      "ph": "X",
+      "name": "3:Linear@t0",
+      "cat": "dense",
+      "ts": 1070.4,
+      "dur": 79.2,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "timestep": 0,
+        "op_type": "Linear",
+        "macs_total": 640000,
+        "spike_driven": false,
+        "in_loop": false,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 45.297,
+          "aten::linear": 8.0,
+          "aten::t": 6.1,
+          "aten::transpose": 4.999,
+          "aten::empty": 2.9,
+          "aten::as_strided": 2.2
+        },
+        "gpu_us": 40.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 39.2
+      }
+    }
+  ],
+  "displayTimeUnit": "ms",
+  "otherData": {
+    "schema": "xnn.trace",
+    "model": "mnist_mlp"
+  },
+  "xnn": {
+    "run_id": "mnist_mlp-cuda-T10-1792923931",
+    "model_id": "mnist_mlp",
+    "framework": "pytorch",
+    "timesteps": 10,
+    "batch": 64,
+    "mode": "inference",
+    "env": {
+      "python": "3.12.10",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "device": "cuda",
+      "torch": "2.6.0+cu124",
+      "snntorch": "0.9.4",
+      "numpy": "2.5.2",
+      "gpu": "NVIDIA GeForce RTX 2060 SUPER",
+      "cuda": "12.4",
+      "driver": null,
+      "region_timing": "cpu-launch-window",
+      "batch_accuracy": 0.1875
+    },
+    "regions": [
+      {
+        "region_id": 0,
+        "layer_id": "1:Linear",
+        "timestep": 0,
+        "ts_us": 750.2000080421567,
+        "dur_us": 114.10005390644073,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 77.196,
+          "aten::linear": 8.0,
+          "aten::t": 5.799,
+          "aten::transpose": 4.9,
+          "aten::empty": 3.599,
+          "aten::as_strided": 2.0
+        },
+        "gpu_us": 65.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 1,
+        "layer_id": "3:Linear",
+        "timestep": 0,
+        "ts_us": 1070.4000014811754,
+        "dur_us": 79.20002099126577,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 45.297,
+          "aten::linear": 8.0,
+          "aten::t": 6.1,
+          "aten::transpose": 4.999,
+          "aten::empty": 2.9,
+          "aten::as_strided": 2.2
+        },
+        "gpu_us": 40.0,
+        "gpu_ops": 6
+      }
+    ],
+    "layers": [
+      {
+        "layer_id": "1:Linear",
+        "op_type": "Linear",
+        "calls": 1,
+        "in_loop": false,
+        "domain": "dense",
+        "spike_driven": false,
+        "macs": 50176000,
+        "self_time_us": 114.1,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 784,
+            "out": 1000
+          }
+        }
+      },
+      {
+        "layer_id": "3:Linear",
+        "op_type": "Linear",
+        "calls": 1,
+        "in_loop": false,
+        "domain": "dense",
+        "spike_driven": false,
+        "macs": 640000,
+        "self_time_us": 79.2,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 1000,
+            "out": 10
+          }
+        }
+      }
+    ],
+    "spikes": [],
+    "sources": [
+      {
+        "collector": "torch_hooks",
+        "status": "captured",
+        "attribution": "region",
+        "capabilities": [
+          "layer",
+          "timestep",
+          "macs",
+          "spikes",
+          "persistent_state",
+          "domain",
+          "label"
+        ],
+        "reason": "",
+        "detail": {
+          "layers": 2,
+          "regions": 2,
+          "registration": "mac-and-neuron",
+          "region_timing": "cpu-launch-window",
+          "labels": "record_function"
+        }
+      },
+      {
+        "collector": "torch_profiler",
+        "status": "partial",
+        "attribution": "region",
+        "capabilities": [
+          "op_time",
+          "op_memory",
+          "call_count",
+          "label_join"
+        ],
+        "reason": "라벨 밖에서 실행된 연산이 존재 — 모듈 트리에 나타나지 않는 함수형 호출(F.linear 등)과 프로파일러 자체 비용이 여기 포함된다",
+        "detail": {
+          "keyed_regions": 2,
+          "matched_regions": 2,
+          "attributed_us": 170.99,
+          "unattributed_us": 53.497,
+          "attribution_rate": 0.761692,
+          "unattributed_events": 4,
+          "unattributed_top": [
+            {
+              "op": "aten::clamp_min",
+              "self_time_us": 27.898
+            },
+            {
+              "op": "aten::flatten",
+              "self_time_us": 11.0
+            },
+            {
+              "op": "aten::relu",
+              "self_time_us": 8.4
+            },
+            {
+              "op": "aten::view",
+              "self_time_us": 6.199
+            }
+          ],
+          "gpu_us": 105.0,
+          "gpu_ops": 12,
+          "instrument_us": 11.399,
+          "instrument_top": [
+            {
+              "op": "aten::detach",
+              "self_time_us": 6.399
+            },
+            {
+              "op": "detach",
+              "self_time_us": 5.0
+            }
+          ]
+        }
+      },
+      {
+        "collector": "perf",
+        "status": "unavailable",
+        "attribution": "process-global",
+        "capabilities": [
+          "cycles",
+          "instructions",
+          "ipc",
+          "cache_misses",
+          "page_faults"
+        ],
+        "reason": "perf 미설치",
+        "detail": {}
+      },
+      {
+        "collector": "nsight_systems",
+        "status": "unavailable",
+        "attribution": "region",
+        "capabilities": [
+          "cuda_api",
+          "kernel_timeline",
+          "nvtx_ranges"
+        ],
+        "reason": "nsys 미설치",
+        "detail": {}
+      },
+      {
+        "collector": "nsight_compute",
+        "status": "unavailable",
+        "attribution": "region",
+        "capabilities": [
+          "kernel_counters",
+          "occupancy",
+          "memory_bandwidth"
+        ],
+        "reason": "어댑터 미구현 (도구는 사용 가능)",
+        "detail": {}
+      },
+      {
+        "collector": "mlir_static",
+        "status": "unavailable",
+        "attribution": "static-name",
+        "capabilities": [
+          "ir_op_counts",
+          "static_memory",
+          "lowering_expansion"
+        ],
+        "reason": "컴파일 산출물 경로 미지정 (.mlir / .ll)",
+        "detail": {}
+      }
+    ],
+    "ir_levels": [],
+    "metrics": {
+      "executed_macs": 50816000
+    },
+    "warnings": [],
+    "schema": "xnn.trace",
+    "version": 1
+  }
+}

@@ -1,0 +1,3119 @@
+{
+  "traceEvents": [
+    {
+      "ph": "M",
+      "name": "process_name",
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "name": "xnn repeated_dnn_snn T=10 batch=64"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "name": "snn1_fc [dense]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "sort_index": 1
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "name": "dnn1.0:Conv2d [dense]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "sort_index": 2
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "name": "dnn2.0:Linear [spike-driven]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "sort_index": 3
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "name": "snn2_fc [dense]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "sort_index": 4
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "name": "lif1 [state]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "sort_index": 5
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_name",
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "name": "lif2 [state]"
+      }
+    },
+    {
+      "ph": "M",
+      "name": "thread_sort_index",
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "sort_index": 6
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn1.0:Conv2d@t0",
+      "cat": "dense",
+      "ts": 778.7,
+      "dur": 539.9,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "timestep": 0,
+        "op_type": "Conv2d",
+        "macs_total": 7225344,
+        "spike_driven": false,
+        "in_loop": false,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::_convolution": 342.894,
+          "aten::cudnn_convolution": 105.898,
+          "aten::add_": 19.0,
+          "aten::convolution": 11.4,
+          "aten::conv2d": 10.5,
+          "aten::reshape": 5.4,
+          "aten::view": 3.4
+        },
+        "gpu_us": 67.0,
+        "gpu_ops": 7,
+        "gpu_idle_us": 472.9
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn1_fc@t0",
+      "cat": "dense",
+      "ts": 1789.5,
+      "dur": 103.2,
+      "pid": 1,
+      "tid": 1,
+      "args": {
+        "timestep": 0,
+        "op_type": "Linear",
+        "macs_total": 12845056,
+        "spike_driven": false,
+        "in_loop": false,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 60.899,
+          "aten::linear": 11.0,
+          "aten::t": 7.7,
+          "aten::transpose": 5.8,
+          "aten::empty": 3.5,
+          "aten::as_strided": 1.9
+        },
+        "gpu_us": 47.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 56.2
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t0",
+      "cat": "state",
+      "ts": 2074.6,
+      "dur": 399.5,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 0,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 41.197,
+          "aten::copy_": 40.7,
+          "aten::sub": 24.3,
+          "aten::gt": 21.7,
+          "aten::_to_copy": 17.2,
+          "aten::mul": 14.4,
+          "aten::clamp": 11.6,
+          "aten::clone": 9.9,
+          "aten::to": 8.3,
+          "aten::add": 5.9,
+          "aten::empty_strided": 5.8,
+          "aten::detach": 3.599,
+          "detach": 2.3
+        },
+        "gpu_us": 705.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -305.5
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 2074.6,
+      "pid": 1,
+      "args": {
+        "rate": 0.000488
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t1",
+      "cat": "state",
+      "ts": 2640.4,
+      "dur": 458.3,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 1,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 45.599,
+          "aten::gt": 34.8,
+          "aten::sub": 25.898,
+          "aten::copy_": 25.298,
+          "aten::clamp": 22.899,
+          "aten::mul": 21.1,
+          "aten::_to_copy": 18.8,
+          "aten::detach": 10.4,
+          "aten::clone": 8.7,
+          "aten::to": 8.0,
+          "aten::add": 7.2,
+          "aten::empty_strided": 6.6,
+          "detach": 3.2
+        },
+        "gpu_us": 820.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -361.7
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 2640.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.060303
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t2",
+      "cat": "state",
+      "ts": 3218.5,
+      "dur": 378.0,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 2,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 34.999,
+          "aten::sub": 32.6,
+          "aten::copy_": 18.899,
+          "aten::_to_copy": 18.0,
+          "aten::gt": 16.3,
+          "aten::mul": 15.0,
+          "aten::clamp": 10.4,
+          "aten::clone": 8.5,
+          "aten::to": 8.2,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.6,
+          "detach": 1.2
+        },
+        "gpu_us": 388.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -10.0
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 3218.5,
+      "pid": 1,
+      "args": {
+        "rate": 0.099121
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t3",
+      "cat": "state",
+      "ts": 3710.7,
+      "dur": 332.3,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 3,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 32.7,
+          "aten::mul": 25.7,
+          "aten::sub": 18.0,
+          "aten::_to_copy": 16.998,
+          "aten::copy_": 15.3,
+          "aten::gt": 14.4,
+          "aten::clamp": 10.0,
+          "aten::to": 8.1,
+          "aten::clone": 7.4,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.5,
+          "detach": 1.2
+        },
+        "gpu_us": 398.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -65.7
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 3710.7,
+      "pid": 1,
+      "args": {
+        "rate": 0.100342
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t4",
+      "cat": "state",
+      "ts": 4138.5,
+      "dur": 323.4,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 4,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 32.9,
+          "aten::copy_": 26.4,
+          "aten::sub": 16.9,
+          "aten::_to_copy": 16.6,
+          "aten::mul": 14.8,
+          "aten::gt": 13.298,
+          "aten::clamp": 9.0,
+          "aten::clone": 7.7,
+          "aten::to": 7.6,
+          "aten::empty_strided": 4.9,
+          "aten::add": 4.4,
+          "aten::detach": 3.8,
+          "detach": 1.1
+        },
+        "gpu_us": 157.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 166.4
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 4138.5,
+      "pid": 1,
+      "args": {
+        "rate": 0.100098
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t5",
+      "cat": "state",
+      "ts": 4601.9,
+      "dur": 372.0,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 5,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "aten::sub": 39.599,
+          "FastSigmoid": 36.998,
+          "aten::copy_": 19.1,
+          "aten::gt": 18.7,
+          "aten::_to_copy": 17.7,
+          "aten::mul": 16.9,
+          "aten::clamp": 11.2,
+          "aten::to": 7.4,
+          "aten::clone": 5.9,
+          "aten::add": 5.9,
+          "aten::empty_strided": 5.4,
+          "aten::detach": 2.2,
+          "detach": 1.9
+        },
+        "gpu_us": 152.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 220.0
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 4601.9,
+      "pid": 1,
+      "args": {
+        "rate": 0.123291
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t6",
+      "cat": "state",
+      "ts": 5061.4,
+      "dur": 476.4,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 6,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 47.699,
+          "aten::sub": 34.799,
+          "aten::gt": 33.499,
+          "aten::copy_": 20.9,
+          "aten::_to_copy": 19.599,
+          "aten::mul": 17.4,
+          "aten::clamp": 11.3,
+          "aten::clone": 8.9,
+          "aten::to": 8.6,
+          "aten::empty_strided": 6.5,
+          "aten::add": 5.9,
+          "aten::detach": 4.0,
+          "detach": 2.3
+        },
+        "gpu_us": 176.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 300.4
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 5061.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.091064
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t7",
+      "cat": "state",
+      "ts": 5721.3,
+      "dur": 342.6,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 7,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 33.299,
+          "aten::mul": 21.7,
+          "aten::sub": 18.4,
+          "aten::_to_copy": 17.0,
+          "aten::copy_": 15.299,
+          "aten::gt": 14.7,
+          "aten::clamp": 9.8,
+          "aten::to": 8.3,
+          "aten::clone": 7.8,
+          "aten::add": 4.9,
+          "aten::empty_strided": 4.2,
+          "aten::detach": 3.9,
+          "detach": 1.0
+        },
+        "gpu_us": 148.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 194.6
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 5721.3,
+      "pid": 1,
+      "args": {
+        "rate": 0.116211
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t8",
+      "cat": "state",
+      "ts": 6156.7,
+      "dur": 315.4,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 8,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 32.5,
+          "aten::_to_copy": 17.699,
+          "aten::sub": 16.4,
+          "aten::mul": 14.6,
+          "aten::gt": 14.0,
+          "aten::copy_": 13.499,
+          "aten::add": 11.4,
+          "aten::clamp": 9.399,
+          "aten::to": 8.0,
+          "aten::clone": 8.0,
+          "aten::empty_strided": 4.5,
+          "aten::detach": 4.3,
+          "detach": 1.0
+        },
+        "gpu_us": 268.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 47.4
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 6156.7,
+      "pid": 1,
+      "args": {
+        "rate": 0.101807
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t9",
+      "cat": "state",
+      "ts": 6560.5,
+      "dur": 318.9,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 9,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 32.299,
+          "aten::mul": 26.3,
+          "aten::_to_copy": 18.1,
+          "aten::sub": 16.3,
+          "aten::gt": 13.8,
+          "aten::copy_": 13.799,
+          "aten::clamp": 9.5,
+          "aten::clone": 8.2,
+          "aten::to": 7.7,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.2,
+          "aten::detach": 3.8,
+          "detach": 1.2
+        },
+        "gpu_us": 191.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 127.9
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 6560.5,
+      "pid": 1,
+      "args": {
+        "rate": 0.109619
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t0",
+      "cat": "dense",
+      "ts": 6983.5,
+      "dur": 85.8,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 0,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 52.6,
+          "aten::linear": 8.2,
+          "aten::t": 6.7,
+          "aten::transpose": 4.6,
+          "aten::empty": 2.899,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 52.8
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t0",
+      "cat": "dense",
+      "ts": 7148.9,
+      "dur": 65.3,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 0,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 33.799,
+          "aten::linear": 8.4,
+          "aten::transpose": 5.2,
+          "aten::t": 5.0,
+          "aten::empty": 2.4,
+          "aten::as_strided": 1.4
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 33.3
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t1",
+      "cat": "dense",
+      "ts": 7396.8,
+      "dur": 123.6,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 1,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 68.599,
+          "aten::linear": 10.899,
+          "aten::t": 7.0,
+          "aten::empty": 6.3,
+          "aten::transpose": 5.9,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 1252.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -1128.4
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t1",
+      "cat": "dense",
+      "ts": 7646.6,
+      "dur": 72.5,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 1,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 35.9,
+          "aten::linear": 9.4,
+          "aten::t": 6.6,
+          "aten::transpose": 5.399,
+          "aten::empty": 2.5,
+          "aten::as_strided": 1.8
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 40.5
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t2",
+      "cat": "dense",
+      "ts": 7788.2,
+      "dur": 59.6,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 2,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 27.799,
+          "aten::linear": 9.0,
+          "aten::t": 5.5,
+          "aten::transpose": 4.6,
+          "aten::empty": 2.3,
+          "aten::as_strided": 1.1
+        },
+        "gpu_us": 34.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 25.6
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t2",
+      "cat": "dense",
+      "ts": 8096.9,
+      "dur": 69.4,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 2,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 33.599,
+          "aten::linear": 9.0,
+          "aten::t": 6.6,
+          "aten::transpose": 4.8,
+          "aten::empty": 3.0,
+          "aten::as_strided": 1.7
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 37.4
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t3",
+      "cat": "dense",
+      "ts": 8237.5,
+      "dur": 49.1,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 3,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 21.7,
+          "aten::linear": 7.7,
+          "aten::t": 4.999,
+          "aten::transpose": 4.3,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.8
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 16.1
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t3",
+      "cat": "dense",
+      "ts": 8353.8,
+      "dur": 41.8,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 3,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 16.3,
+          "aten::linear": 7.4,
+          "aten::t": 4.9,
+          "aten::transpose": 4.199,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.6
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 9.8
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t4",
+      "cat": "dense",
+      "ts": 8442.4,
+      "dur": 39.0,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 4,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 15.6,
+          "aten::linear": 7.6,
+          "aten::t": 4.1,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 575.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -536.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t4",
+      "cat": "dense",
+      "ts": 8728.9,
+      "dur": 93.1,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 4,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 42.899,
+          "aten::linear": 11.0,
+          "aten::empty": 7.5,
+          "aten::t": 7.2,
+          "aten::transpose": 6.4,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 35.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 58.1
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t5",
+      "cat": "dense",
+      "ts": 8913.7,
+      "dur": 51.9,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 5,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 25.399,
+          "aten::linear": 7.9,
+          "aten::t": 4.3,
+          "aten::transpose": 3.4,
+          "aten::empty": 2.1,
+          "aten::as_strided": 0.8
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 18.9
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t5",
+      "cat": "dense",
+      "ts": 9052.5,
+      "dur": 44.4,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 5,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 17.9,
+          "aten::linear": 7.6,
+          "aten::t": 4.3,
+          "aten::transpose": 4.299,
+          "aten::empty": 2.1,
+          "aten::as_strided": 0.6
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 12.4
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t6",
+      "cat": "dense",
+      "ts": 9146.5,
+      "dur": 42.3,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 6,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 16.199,
+          "aten::linear": 8.5,
+          "aten::t": 4.5,
+          "aten::transpose": 4.4,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.4
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 9.3
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t6",
+      "cat": "dense",
+      "ts": 9254.1,
+      "dur": 42.2,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 6,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 16.7,
+          "aten::linear": 8.5,
+          "aten::transpose": 4.2,
+          "aten::t": 4.1,
+          "aten::empty": 1.7,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 285.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -242.8
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t7",
+      "cat": "dense",
+      "ts": 9341.9,
+      "dur": 40.2,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 7,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 15.6,
+          "aten::linear": 8.5,
+          "aten::t": 4.6,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.399
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": 7.2
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t7",
+      "cat": "dense",
+      "ts": 9525.5,
+      "dur": 30.2,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 7,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 14.4,
+          "aten::linear": 4.6,
+          "aten::t": 2.8,
+          "aten::transpose": 2.2,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -2.8
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t8",
+      "cat": "dense",
+      "ts": 9586.4,
+      "dur": 37.8,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 8,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 21.7,
+          "aten::linear": 5.3,
+          "aten::t": 2.5,
+          "aten::transpose": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.3
+        },
+        "gpu_us": 479.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -441.2
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t8",
+      "cat": "dense",
+      "ts": 9665.1,
+      "dur": 25.5,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 8,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 9.2,
+          "aten::linear": 5.3,
+          "aten::transpose": 2.8,
+          "aten::t": 2.6,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.4
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -7.5
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t9",
+      "cat": "dense",
+      "ts": 9717.4,
+      "dur": 23.5,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 9,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 8.7,
+          "aten::linear": 4.5,
+          "aten::transpose": 2.6,
+          "aten::t": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.2
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -9.5
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t9",
+      "cat": "dense",
+      "ts": 9774.8,
+      "dur": 25.1,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 9,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 9.3,
+          "aten::linear": 5.5,
+          "aten::t": 2.6,
+          "aten::transpose": 2.5,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.3
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6,
+        "gpu_idle_us": -6.9
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t0",
+      "cat": "state",
+      "ts": 9919.8,
+      "dur": 526.0,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 0,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 51.1,
+          "aten::sub": 37.499,
+          "aten::mul": 35.1,
+          "aten::copy_": 31.4,
+          "aten::gt": 30.699,
+          "aten::_to_copy": 21.4,
+          "aten::clamp": 13.999,
+          "aten::to": 9.499,
+          "aten::add": 9.299,
+          "aten::clone": 8.2,
+          "aten::empty_strided": 8.0,
+          "aten::detach": 3.7,
+          "detach": 3.1
+        },
+        "gpu_us": 677.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -151.0
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 9919.8,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t1",
+      "cat": "state",
+      "ts": 10586.3,
+      "dur": 566.9,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 1,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 48.4,
+          "aten::copy_": 35.999,
+          "aten::sub": 33.099,
+          "aten::gt": 30.899,
+          "aten::mul": 17.1,
+          "aten::_to_copy": 15.5,
+          "aten::clamp": 13.099,
+          "aten::add": 6.9,
+          "aten::to": 6.5,
+          "aten::clone": 6.4,
+          "aten::empty_strided": 6.0,
+          "aten::detach": 3.3,
+          "detach": 2.2
+        },
+        "gpu_us": 372.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 194.9
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 10586.3,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t2",
+      "cat": "state",
+      "ts": 11251.8,
+      "dur": 275.7,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 2,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 26.699,
+          "aten::copy_": 14.1,
+          "aten::gt": 13.4,
+          "aten::_to_copy": 12.1,
+          "aten::sub": 11.6,
+          "aten::mul": 10.3,
+          "aten::clamp": 7.8,
+          "aten::to": 5.8,
+          "aten::clone": 5.2,
+          "aten::empty_strided": 3.499,
+          "aten::add": 3.3,
+          "aten::detach": 2.1,
+          "detach": 1.3
+        },
+        "gpu_us": 132.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 143.7
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 11251.8,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t3",
+      "cat": "state",
+      "ts": 11623.4,
+      "dur": 256.3,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 3,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 24.9,
+          "aten::copy_": 22.699,
+          "aten::_to_copy": 12.2,
+          "aten::sub": 11.598,
+          "aten::mul": 10.9,
+          "aten::gt": 10.0,
+          "aten::clamp": 7.7,
+          "aten::clone": 5.8,
+          "aten::to": 4.9,
+          "aten::empty_strided": 3.3,
+          "aten::add": 3.1,
+          "aten::detach": 2.9,
+          "detach": 0.9
+        },
+        "gpu_us": 383.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -126.7
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 11623.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t4",
+      "cat": "state",
+      "ts": 11956.5,
+      "dur": 353.0,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 4,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 34.5,
+          "aten::mul": 30.7,
+          "aten::sub": 28.399,
+          "aten::gt": 17.1,
+          "aten::_to_copy": 16.498,
+          "aten::copy_": 14.5,
+          "aten::clamp": 9.0,
+          "aten::add": 7.6,
+          "aten::to": 7.0,
+          "aten::clone": 5.9,
+          "aten::empty_strided": 4.9,
+          "aten::detach": 2.7,
+          "detach": 0.7
+        },
+        "gpu_us": 403.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -50.0
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 11956.5,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t5",
+      "cat": "state",
+      "ts": 12468.4,
+      "dur": 375.9,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 5,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 35.1,
+          "aten::mul": 25.0,
+          "aten::sub": 19.5,
+          "aten::_to_copy": 18.5,
+          "aten::copy_": 18.199,
+          "aten::gt": 17.4,
+          "aten::clamp": 11.5,
+          "aten::clone": 9.0,
+          "aten::to": 8.7,
+          "aten::add": 5.3,
+          "aten::empty_strided": 5.3,
+          "aten::detach": 3.7,
+          "detach": 1.4
+        },
+        "gpu_us": 427.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -51.1
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 12468.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.0
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t6",
+      "cat": "state",
+      "ts": 12956.4,
+      "dur": 355.6,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 6,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 35.799,
+          "aten::mul": 23.999,
+          "aten::sub": 19.4,
+          "aten::_to_copy": 18.5,
+          "aten::copy_": 16.8,
+          "aten::gt": 16.7,
+          "aten::clamp": 10.9,
+          "aten::clone": 8.6,
+          "aten::to": 8.2,
+          "aten::add": 5.6,
+          "aten::empty_strided": 5.599,
+          "aten::detach": 4.1,
+          "detach": 1.7
+        },
+        "gpu_us": 364.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -8.4
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 12956.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.00625
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t7",
+      "cat": "state",
+      "ts": 13427.3,
+      "dur": 384.9,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 7,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 39.199,
+          "aten::copy_": 27.599,
+          "aten::sub": 22.0,
+          "aten::gt": 18.6,
+          "aten::_to_copy": 18.599,
+          "aten::mul": 17.899,
+          "aten::clamp": 10.8,
+          "aten::to": 8.8,
+          "aten::clone": 8.7,
+          "aten::empty_strided": 6.0,
+          "aten::add": 5.4,
+          "aten::detach": 3.9,
+          "detach": 2.2
+        },
+        "gpu_us": 397.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": -12.1
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 13427.3,
+      "pid": 1,
+      "args": {
+        "rate": 0.032813
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t8",
+      "cat": "state",
+      "ts": 13943.4,
+      "dur": 364.6,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 8,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 33.4,
+          "aten::sub": 22.5,
+          "aten::copy_": 19.1,
+          "aten::gt": 16.599,
+          "aten::_to_copy": 16.2,
+          "aten::mul": 15.899,
+          "aten::clamp": 11.5,
+          "aten::clone": 8.5,
+          "aten::to": 6.9,
+          "aten::add": 5.1,
+          "aten::empty_strided": 5.0,
+          "aten::detach": 4.0,
+          "detach": 1.7
+        },
+        "gpu_us": 137.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 227.6
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 13943.4,
+      "pid": 1,
+      "args": {
+        "rate": 0.029687
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif2@t9",
+      "cat": "state",
+      "ts": 14527.2,
+      "dur": 456.8,
+      "pid": 1,
+      "tid": 6,
+      "args": {
+        "timestep": 9,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 2560,
+        "ops_self_time_us": {
+          "FastSigmoid": 42.1,
+          "aten::sub": 33.099,
+          "aten::copy_": 31.398,
+          "aten::gt": 22.299,
+          "aten::_to_copy": 19.5,
+          "aten::mul": 17.399,
+          "aten::clamp": 11.7,
+          "aten::to": 8.9,
+          "aten::clone": 8.3,
+          "aten::empty_strided": 6.6,
+          "aten::add": 5.9,
+          "aten::detach": 3.9,
+          "detach": 2.2
+        },
+        "gpu_us": 387.0,
+        "gpu_ops": 26,
+        "gpu_idle_us": 69.8
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif2",
+      "cat": "spike",
+      "ts": 14527.2,
+      "pid": 1,
+      "args": {
+        "rate": 0.039062
+      }
+    }
+  ],
+  "displayTimeUnit": "ms",
+  "otherData": {
+    "schema": "xnn.trace",
+    "model": "repeated_dnn_snn"
+  },
+  "xnn": {
+    "run_id": "repeated_dnn_snn-cuda-T10-1792923931",
+    "model_id": "repeated_dnn_snn",
+    "framework": "pytorch",
+    "timesteps": 10,
+    "batch": 64,
+    "mode": "inference",
+    "env": {
+      "python": "3.12.10",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "device": "cuda",
+      "torch": "2.6.0+cu124",
+      "snntorch": "0.9.4",
+      "numpy": "2.5.2",
+      "gpu": "NVIDIA GeForce RTX 2060 SUPER",
+      "cuda": "12.4",
+      "driver": null,
+      "region_timing": "cpu-launch-window",
+      "batch_accuracy": 0.125
+    },
+    "regions": [
+      {
+        "region_id": 0,
+        "layer_id": "dnn1.0:Conv2d",
+        "timestep": 0,
+        "ts_us": 778.6999922245741,
+        "dur_us": 539.9000365287066,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::_convolution": 342.894,
+          "aten::cudnn_convolution": 105.898,
+          "aten::add_": 19.0,
+          "aten::convolution": 11.4,
+          "aten::conv2d": 10.5,
+          "aten::reshape": 5.4,
+          "aten::view": 3.4
+        },
+        "gpu_us": 67.0,
+        "gpu_ops": 7
+      },
+      {
+        "region_id": 1,
+        "layer_id": "snn1_fc",
+        "timestep": 0,
+        "ts_us": 1789.500005543232,
+        "dur_us": 103.20008732378483,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 60.899,
+          "aten::linear": 11.0,
+          "aten::t": 7.7,
+          "aten::transpose": 5.8,
+          "aten::empty": 3.5,
+          "aten::as_strided": 1.9
+        },
+        "gpu_us": 47.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 2,
+        "layer_id": "lif1",
+        "timestep": 0,
+        "ts_us": 2074.600080959499,
+        "dur_us": 399.50001519173384,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 41.197,
+          "aten::copy_": 40.7,
+          "aten::sub": 24.3,
+          "aten::gt": 21.7,
+          "aten::_to_copy": 17.2,
+          "aten::mul": 14.4,
+          "aten::clamp": 11.6,
+          "aten::clone": 9.9,
+          "aten::to": 8.3,
+          "aten::add": 5.9,
+          "aten::empty_strided": 5.8,
+          "aten::detach": 3.599,
+          "detach": 2.3
+        },
+        "gpu_us": 705.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 3,
+        "layer_id": "lif1",
+        "timestep": 1,
+        "ts_us": 2640.40008187294,
+        "dur_us": 458.2999972626567,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 45.599,
+          "aten::gt": 34.8,
+          "aten::sub": 25.898,
+          "aten::copy_": 25.298,
+          "aten::clamp": 22.899,
+          "aten::mul": 21.1,
+          "aten::_to_copy": 18.8,
+          "aten::detach": 10.4,
+          "aten::clone": 8.7,
+          "aten::to": 8.0,
+          "aten::add": 7.2,
+          "aten::empty_strided": 6.6,
+          "detach": 3.2
+        },
+        "gpu_us": 820.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 4,
+        "layer_id": "lif1",
+        "timestep": 2,
+        "ts_us": 3218.500060029328,
+        "dur_us": 377.9999678954482,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 34.999,
+          "aten::sub": 32.6,
+          "aten::copy_": 18.899,
+          "aten::_to_copy": 18.0,
+          "aten::gt": 16.3,
+          "aten::mul": 15.0,
+          "aten::clamp": 10.4,
+          "aten::clone": 8.5,
+          "aten::to": 8.2,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.6,
+          "detach": 1.2
+        },
+        "gpu_us": 388.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 5,
+        "layer_id": "lif1",
+        "timestep": 3,
+        "ts_us": 3710.700082592666,
+        "dur_us": 332.2999691590667,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 32.7,
+          "aten::mul": 25.7,
+          "aten::sub": 18.0,
+          "aten::_to_copy": 16.998,
+          "aten::copy_": 15.3,
+          "aten::gt": 14.4,
+          "aten::clamp": 10.0,
+          "aten::to": 8.1,
+          "aten::clone": 7.4,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.5,
+          "detach": 1.2
+        },
+        "gpu_us": 398.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 6,
+        "layer_id": "lif1",
+        "timestep": 4,
+        "ts_us": 4138.500080443919,
+        "dur_us": 323.4000178053975,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 32.9,
+          "aten::copy_": 26.4,
+          "aten::sub": 16.9,
+          "aten::_to_copy": 16.6,
+          "aten::mul": 14.8,
+          "aten::gt": 13.298,
+          "aten::clamp": 9.0,
+          "aten::clone": 7.7,
+          "aten::to": 7.6,
+          "aten::empty_strided": 4.9,
+          "aten::add": 4.4,
+          "aten::detach": 3.8,
+          "detach": 1.1
+        },
+        "gpu_us": 157.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 7,
+        "layer_id": "lif1",
+        "timestep": 5,
+        "ts_us": 4601.90000012517,
+        "dur_us": 372.0000386238098,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "aten::sub": 39.599,
+          "FastSigmoid": 36.998,
+          "aten::copy_": 19.1,
+          "aten::gt": 18.7,
+          "aten::_to_copy": 17.7,
+          "aten::mul": 16.9,
+          "aten::clamp": 11.2,
+          "aten::to": 7.4,
+          "aten::clone": 5.9,
+          "aten::add": 5.9,
+          "aten::empty_strided": 5.4,
+          "aten::detach": 2.2,
+          "detach": 1.9
+        },
+        "gpu_us": 152.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 8,
+        "layer_id": "lif1",
+        "timestep": 6,
+        "ts_us": 5061.4000065252185,
+        "dur_us": 476.40001866966486,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 47.699,
+          "aten::sub": 34.799,
+          "aten::gt": 33.499,
+          "aten::copy_": 20.9,
+          "aten::_to_copy": 19.599,
+          "aten::mul": 17.4,
+          "aten::clamp": 11.3,
+          "aten::clone": 8.9,
+          "aten::to": 8.6,
+          "aten::empty_strided": 6.5,
+          "aten::add": 5.9,
+          "aten::detach": 4.0,
+          "detach": 2.3
+        },
+        "gpu_us": 176.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 9,
+        "layer_id": "lif1",
+        "timestep": 7,
+        "ts_us": 5721.300025470555,
+        "dur_us": 342.6000475883484,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 33.299,
+          "aten::mul": 21.7,
+          "aten::sub": 18.4,
+          "aten::_to_copy": 17.0,
+          "aten::copy_": 15.299,
+          "aten::gt": 14.7,
+          "aten::clamp": 9.8,
+          "aten::to": 8.3,
+          "aten::clone": 7.8,
+          "aten::add": 4.9,
+          "aten::empty_strided": 4.2,
+          "aten::detach": 3.9,
+          "detach": 1.0
+        },
+        "gpu_us": 148.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 10,
+        "layer_id": "lif1",
+        "timestep": 8,
+        "ts_us": 6156.700081191957,
+        "dur_us": 315.39995688945055,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 32.5,
+          "aten::_to_copy": 17.699,
+          "aten::sub": 16.4,
+          "aten::mul": 14.6,
+          "aten::gt": 14.0,
+          "aten::copy_": 13.499,
+          "aten::add": 11.4,
+          "aten::clamp": 9.399,
+          "aten::to": 8.0,
+          "aten::clone": 8.0,
+          "aten::empty_strided": 4.5,
+          "aten::detach": 4.3,
+          "detach": 1.0
+        },
+        "gpu_us": 268.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 11,
+        "layer_id": "lif1",
+        "timestep": 9,
+        "ts_us": 6560.5000127106905,
+        "dur_us": 318.89998354017735,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 32.299,
+          "aten::mul": 26.3,
+          "aten::_to_copy": 18.1,
+          "aten::sub": 16.3,
+          "aten::gt": 13.8,
+          "aten::copy_": 13.799,
+          "aten::clamp": 9.5,
+          "aten::clone": 8.2,
+          "aten::to": 7.7,
+          "aten::add": 5.1,
+          "aten::empty_strided": 4.2,
+          "aten::detach": 3.8,
+          "detach": 1.2
+        },
+        "gpu_us": 191.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 12,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 0,
+        "ts_us": 6983.500090427697,
+        "dur_us": 85.79995483160019,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 52.6,
+          "aten::linear": 8.2,
+          "aten::t": 6.7,
+          "aten::transpose": 4.6,
+          "aten::empty": 2.899,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 13,
+        "layer_id": "snn2_fc",
+        "timestep": 0,
+        "ts_us": 7148.90006929636,
+        "dur_us": 65.29991514980793,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 33.799,
+          "aten::linear": 8.4,
+          "aten::transpose": 5.2,
+          "aten::t": 5.0,
+          "aten::empty": 2.4,
+          "aten::as_strided": 1.4
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 14,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 1,
+        "ts_us": 7396.800094284117,
+        "dur_us": 123.5998934134841,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 68.599,
+          "aten::linear": 10.899,
+          "aten::t": 7.0,
+          "aten::empty": 6.3,
+          "aten::transpose": 5.9,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 1252.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 15,
+        "layer_id": "snn2_fc",
+        "timestep": 1,
+        "ts_us": 7646.60001732409,
+        "dur_us": 72.4999699741602,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 35.9,
+          "aten::linear": 9.4,
+          "aten::t": 6.6,
+          "aten::transpose": 5.399,
+          "aten::empty": 2.5,
+          "aten::as_strided": 1.8
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 16,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 2,
+        "ts_us": 7788.200047798455,
+        "dur_us": 59.59998816251755,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 27.799,
+          "aten::linear": 9.0,
+          "aten::t": 5.5,
+          "aten::transpose": 4.6,
+          "aten::empty": 2.3,
+          "aten::as_strided": 1.1
+        },
+        "gpu_us": 34.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 17,
+        "layer_id": "snn2_fc",
+        "timestep": 2,
+        "ts_us": 8096.900070086122,
+        "dur_us": 69.39994636923075,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 33.599,
+          "aten::linear": 9.0,
+          "aten::t": 6.6,
+          "aten::transpose": 4.8,
+          "aten::empty": 3.0,
+          "aten::as_strided": 1.7
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 18,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 3,
+        "ts_us": 8237.500092945993,
+        "dur_us": 49.09990821033716,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 21.7,
+          "aten::linear": 7.7,
+          "aten::t": 4.999,
+          "aten::transpose": 4.3,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.8
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 19,
+        "layer_id": "snn2_fc",
+        "timestep": 3,
+        "ts_us": 8353.800047188997,
+        "dur_us": 41.79996903985739,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 16.3,
+          "aten::linear": 7.4,
+          "aten::t": 4.9,
+          "aten::transpose": 4.199,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.6
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 20,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 4,
+        "ts_us": 8442.400023341179,
+        "dur_us": 39.00006413459778,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 15.6,
+          "aten::linear": 7.6,
+          "aten::t": 4.1,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 575.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 21,
+        "layer_id": "snn2_fc",
+        "timestep": 4,
+        "ts_us": 8728.899993002415,
+        "dur_us": 93.10001041740179,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 42.899,
+          "aten::linear": 11.0,
+          "aten::empty": 7.5,
+          "aten::t": 7.2,
+          "aten::transpose": 6.4,
+          "aten::as_strided": 2.1
+        },
+        "gpu_us": 35.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 22,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 5,
+        "ts_us": 8913.700003176928,
+        "dur_us": 51.900045946240425,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 25.399,
+          "aten::linear": 7.9,
+          "aten::t": 4.3,
+          "aten::transpose": 3.4,
+          "aten::empty": 2.1,
+          "aten::as_strided": 0.8
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 23,
+        "layer_id": "snn2_fc",
+        "timestep": 5,
+        "ts_us": 9052.50001233071,
+        "dur_us": 44.39998883754015,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 17.9,
+          "aten::linear": 7.6,
+          "aten::t": 4.3,
+          "aten::transpose": 4.299,
+          "aten::empty": 2.1,
+          "aten::as_strided": 0.6
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 24,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 6,
+        "ts_us": 9146.500029601157,
+        "dur_us": 42.29997284710407,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 16.199,
+          "aten::linear": 8.5,
+          "aten::t": 4.5,
+          "aten::transpose": 4.4,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.4
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 25,
+        "layer_id": "snn2_fc",
+        "timestep": 6,
+        "ts_us": 9254.10003401339,
+        "dur_us": 42.199972085654736,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 16.7,
+          "aten::linear": 8.5,
+          "aten::transpose": 4.2,
+          "aten::t": 4.1,
+          "aten::empty": 1.7,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 285.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 26,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 7,
+        "ts_us": 9341.900004073977,
+        "dur_us": 40.20007327198982,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 15.6,
+          "aten::linear": 8.5,
+          "aten::t": 4.6,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.399
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 27,
+        "layer_id": "snn2_fc",
+        "timestep": 7,
+        "ts_us": 9525.500005111098,
+        "dur_us": 30.199997127056122,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 14.4,
+          "aten::linear": 4.6,
+          "aten::t": 2.8,
+          "aten::transpose": 2.2,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.5
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 28,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 8,
+        "ts_us": 9586.400003172457,
+        "dur_us": 37.800054997205734,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 21.7,
+          "aten::linear": 5.3,
+          "aten::t": 2.5,
+          "aten::transpose": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.3
+        },
+        "gpu_us": 479.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 29,
+        "layer_id": "snn2_fc",
+        "timestep": 8,
+        "ts_us": 9665.100020356476,
+        "dur_us": 25.50007775425911,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 9.2,
+          "aten::linear": 5.3,
+          "aten::transpose": 2.8,
+          "aten::t": 2.6,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.4
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 30,
+        "layer_id": "dnn2.0:Linear",
+        "timestep": 9,
+        "ts_us": 9717.400069348514,
+        "dur_us": 23.499946109950542,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 8.7,
+          "aten::linear": 4.5,
+          "aten::transpose": 2.6,
+          "aten::t": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.2
+        },
+        "gpu_us": 33.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 31,
+        "layer_id": "snn2_fc",
+        "timestep": 9,
+        "ts_us": 9774.800040759146,
+        "dur_us": 25.099958293139935,
+        "domain": "dense",
+        "parent_id": null,
+        "ops": {
+          "aten::addmm": 9.3,
+          "aten::linear": 5.5,
+          "aten::t": 2.6,
+          "aten::transpose": 2.5,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.3
+        },
+        "gpu_us": 32.0,
+        "gpu_ops": 6
+      },
+      {
+        "region_id": 32,
+        "layer_id": "lif2",
+        "timestep": 0,
+        "ts_us": 9919.800097122788,
+        "dur_us": 525.9999306872487,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 51.1,
+          "aten::sub": 37.499,
+          "aten::mul": 35.1,
+          "aten::copy_": 31.4,
+          "aten::gt": 30.699,
+          "aten::_to_copy": 21.4,
+          "aten::clamp": 13.999,
+          "aten::to": 9.499,
+          "aten::add": 9.299,
+          "aten::clone": 8.2,
+          "aten::empty_strided": 8.0,
+          "aten::detach": 3.7,
+          "detach": 3.1
+        },
+        "gpu_us": 677.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 33,
+        "layer_id": "lif2",
+        "timestep": 1,
+        "ts_us": 10586.30004990846,
+        "dur_us": 566.9000092893839,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 48.4,
+          "aten::copy_": 35.999,
+          "aten::sub": 33.099,
+          "aten::gt": 30.899,
+          "aten::mul": 17.1,
+          "aten::_to_copy": 15.5,
+          "aten::clamp": 13.099,
+          "aten::add": 6.9,
+          "aten::to": 6.5,
+          "aten::clone": 6.4,
+          "aten::empty_strided": 6.0,
+          "aten::detach": 3.3,
+          "detach": 2.2
+        },
+        "gpu_us": 372.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 34,
+        "layer_id": "lif2",
+        "timestep": 2,
+        "ts_us": 11251.799995079637,
+        "dur_us": 275.70000384002924,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 26.699,
+          "aten::copy_": 14.1,
+          "aten::gt": 13.4,
+          "aten::_to_copy": 12.1,
+          "aten::sub": 11.6,
+          "aten::mul": 10.3,
+          "aten::clamp": 7.8,
+          "aten::to": 5.8,
+          "aten::clone": 5.2,
+          "aten::empty_strided": 3.499,
+          "aten::add": 3.3,
+          "aten::detach": 2.1,
+          "detach": 1.3
+        },
+        "gpu_us": 132.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 35,
+        "layer_id": "lif2",
+        "timestep": 3,
+        "ts_us": 11623.400030657649,
+        "dur_us": 256.2999725341797,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 24.9,
+          "aten::copy_": 22.699,
+          "aten::_to_copy": 12.2,
+          "aten::sub": 11.598,
+          "aten::mul": 10.9,
+          "aten::gt": 10.0,
+          "aten::clamp": 7.7,
+          "aten::clone": 5.8,
+          "aten::to": 4.9,
+          "aten::empty_strided": 3.3,
+          "aten::add": 3.1,
+          "aten::detach": 2.9,
+          "detach": 0.9
+        },
+        "gpu_us": 383.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 36,
+        "layer_id": "lif2",
+        "timestep": 4,
+        "ts_us": 11956.50000590831,
+        "dur_us": 353.0000103637576,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 34.5,
+          "aten::mul": 30.7,
+          "aten::sub": 28.399,
+          "aten::gt": 17.1,
+          "aten::_to_copy": 16.498,
+          "aten::copy_": 14.5,
+          "aten::clamp": 9.0,
+          "aten::add": 7.6,
+          "aten::to": 7.0,
+          "aten::clone": 5.9,
+          "aten::empty_strided": 4.9,
+          "aten::detach": 2.7,
+          "detach": 0.7
+        },
+        "gpu_us": 403.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 37,
+        "layer_id": "lif2",
+        "timestep": 5,
+        "ts_us": 12468.400062061846,
+        "dur_us": 375.89995190501213,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 35.1,
+          "aten::mul": 25.0,
+          "aten::sub": 19.5,
+          "aten::_to_copy": 18.5,
+          "aten::copy_": 18.199,
+          "aten::gt": 17.4,
+          "aten::clamp": 11.5,
+          "aten::clone": 9.0,
+          "aten::to": 8.7,
+          "aten::add": 5.3,
+          "aten::empty_strided": 5.3,
+          "aten::detach": 3.7,
+          "detach": 1.4
+        },
+        "gpu_us": 427.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 38,
+        "layer_id": "lif2",
+        "timestep": 6,
+        "ts_us": 12956.400052644312,
+        "dur_us": 355.6000301614404,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 35.799,
+          "aten::mul": 23.999,
+          "aten::sub": 19.4,
+          "aten::_to_copy": 18.5,
+          "aten::copy_": 16.8,
+          "aten::gt": 16.7,
+          "aten::clamp": 10.9,
+          "aten::clone": 8.6,
+          "aten::to": 8.2,
+          "aten::add": 5.6,
+          "aten::empty_strided": 5.599,
+          "aten::detach": 4.1,
+          "detach": 1.7
+        },
+        "gpu_us": 364.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 39,
+        "layer_id": "lif2",
+        "timestep": 7,
+        "ts_us": 13427.300029434264,
+        "dur_us": 384.90002043545246,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 39.199,
+          "aten::copy_": 27.599,
+          "aten::sub": 22.0,
+          "aten::gt": 18.6,
+          "aten::_to_copy": 18.599,
+          "aten::mul": 17.899,
+          "aten::clamp": 10.8,
+          "aten::to": 8.8,
+          "aten::clone": 8.7,
+          "aten::empty_strided": 6.0,
+          "aten::add": 5.4,
+          "aten::detach": 3.9,
+          "detach": 2.2
+        },
+        "gpu_us": 397.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 40,
+        "layer_id": "lif2",
+        "timestep": 8,
+        "ts_us": 13943.40000115335,
+        "dur_us": 364.6000986918807,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 33.4,
+          "aten::sub": 22.5,
+          "aten::copy_": 19.1,
+          "aten::gt": 16.599,
+          "aten::_to_copy": 16.2,
+          "aten::mul": 15.899,
+          "aten::clamp": 11.5,
+          "aten::clone": 8.5,
+          "aten::to": 6.9,
+          "aten::add": 5.1,
+          "aten::empty_strided": 5.0,
+          "aten::detach": 4.0,
+          "detach": 1.7
+        },
+        "gpu_us": 137.0,
+        "gpu_ops": 26
+      },
+      {
+        "region_id": 41,
+        "layer_id": "lif2",
+        "timestep": 9,
+        "ts_us": 14527.20002271235,
+        "dur_us": 456.79998584091663,
+        "domain": "state",
+        "parent_id": null,
+        "ops": {
+          "FastSigmoid": 42.1,
+          "aten::sub": 33.099,
+          "aten::copy_": 31.398,
+          "aten::gt": 22.299,
+          "aten::_to_copy": 19.5,
+          "aten::mul": 17.399,
+          "aten::clamp": 11.7,
+          "aten::to": 8.9,
+          "aten::clone": 8.3,
+          "aten::empty_strided": 6.6,
+          "aten::add": 5.9,
+          "aten::detach": 3.9,
+          "detach": 2.2
+        },
+        "gpu_us": 387.0,
+        "gpu_ops": 26
+      }
+    ],
+    "layers": [
+      {
+        "layer_id": "snn1_fc",
+        "op_type": "Linear",
+        "calls": 1,
+        "in_loop": false,
+        "domain": "dense",
+        "spike_driven": false,
+        "macs": 12845056,
+        "self_time_us": 103.2,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 3136,
+            "out": 64
+          }
+        }
+      },
+      {
+        "layer_id": "dnn1.0:Conv2d",
+        "op_type": "Conv2d",
+        "calls": 1,
+        "in_loop": false,
+        "domain": "dense",
+        "spike_driven": false,
+        "macs": 7225344,
+        "self_time_us": 539.9,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 1,
+            "out": 16
+          }
+        }
+      },
+      {
+        "layer_id": "dnn2.0:Linear",
+        "op_type": "Linear",
+        "calls": 10,
+        "in_loop": true,
+        "domain": "dense",
+        "spike_driven": true,
+        "macs": 1310720,
+        "self_time_us": 552.8,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 64,
+            "out": 32
+          }
+        }
+      },
+      {
+        "layer_id": "snn2_fc",
+        "op_type": "Linear",
+        "calls": 10,
+        "in_loop": true,
+        "domain": "dense",
+        "spike_driven": false,
+        "macs": 204800,
+        "self_time_us": 509.5,
+        "state_bytes": 0,
+        "extra": {
+          "fan": {
+            "in": 32,
+            "out": 10
+          }
+        }
+      },
+      {
+        "layer_id": "lif1",
+        "op_type": "Leaky",
+        "calls": 10,
+        "in_loop": true,
+        "domain": "state",
+        "spike_driven": false,
+        "macs": 0,
+        "self_time_us": 3716.8,
+        "state_bytes": 16384,
+        "extra": {
+          "fan": {}
+        }
+      },
+      {
+        "layer_id": "lif2",
+        "op_type": "Leaky",
+        "calls": 10,
+        "in_loop": true,
+        "domain": "state",
+        "spike_driven": false,
+        "macs": 0,
+        "self_time_us": 3915.7,
+        "state_bytes": 2560,
+        "extra": {
+          "fan": {}
+        }
+      }
+    ],
+    "spikes": [
+      {
+        "layer_id": "lif1",
+        "path": "out-gpu\\repeated_dnn_snn\\spikes\\spikes_T10_lif1.npy",
+        "sha256": "987cc67be482228ffeccae21c825bbc0636395d89f29407bf443dcfa97054e79",
+        "timesteps": 10,
+        "batch": 64,
+        "neurons": 64,
+        "fanout": 32,
+        "fanout_from": "dnn2.0:Linear",
+        "synops": 118272,
+        "metrics": {
+          "timesteps": 10,
+          "batch": 64,
+          "neurons": 64,
+          "spikes": 3696,
+          "mean_rate": 0.090234375,
+          "per_timestep_rate": [
+            0.00048828125,
+            0.060302734375,
+            0.09912109375,
+            0.100341796875,
+            0.10009765625,
+            0.123291015625,
+            0.091064453125,
+            0.1162109375,
+            0.101806640625,
+            0.109619140625
+          ],
+          "dead_fraction": 0.0625,
+          "saturated_fraction": 0.0,
+          "first_spike_step_mean": 3.5512295081967213,
+          "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+          "never_fired_sample_neuron_fraction": 0.642578125,
+          "spikes_per_neuron": [
+            47,
+            75,
+            128,
+            37,
+            10,
+            87,
+            26,
+            19,
+            56,
+            30,
+            2,
+            30,
+            32,
+            36,
+            0,
+            8,
+            227,
+            155,
+            8,
+            0,
+            1,
+            30,
+            4,
+            43,
+            0,
+            249,
+            9,
+            14,
+            68,
+            28,
+            14,
+            5,
+            40,
+            4,
+            190,
+            1,
+            66,
+            128,
+            8,
+            22,
+            94,
+            270,
+            80,
+            3,
+            145,
+            2,
+            57,
+            68,
+            1,
+            175,
+            59,
+            158,
+            5,
+            32,
+            213,
+            156,
+            84,
+            2,
+            0,
+            58,
+            51,
+            1,
+            1,
+            44
+          ],
+          "spikes_per_neuron_truncated": false,
+          "top_neurons": [
+            {
+              "neuron": 41,
+              "spikes": 270
+            },
+            {
+              "neuron": 25,
+              "spikes": 249
+            },
+            {
+              "neuron": 16,
+              "spikes": 227
+            },
+            {
+              "neuron": 54,
+              "spikes": 213
+            },
+            {
+              "neuron": 34,
+              "spikes": 190
+            },
+            {
+              "neuron": 49,
+              "spikes": 175
+            },
+            {
+              "neuron": 51,
+              "spikes": 158
+            },
+            {
+              "neuron": 55,
+              "spikes": 156
+            },
+            {
+              "neuron": 17,
+              "spikes": 155
+            },
+            {
+              "neuron": 44,
+              "spikes": 145
+            }
+          ]
+        }
+      },
+      {
+        "layer_id": "lif2",
+        "path": "out-gpu\\repeated_dnn_snn\\spikes\\spikes_T10_lif2.npy",
+        "sha256": "ece9a2adaac89ffa60af3abe3ca7c4cffd8061ca0038336d8c4b7a3a37616275",
+        "timesteps": 10,
+        "batch": 64,
+        "neurons": 10,
+        "fanout": null,
+        "fanout_from": "output",
+        "synops": null,
+        "metrics": {
+          "timesteps": 10,
+          "batch": 64,
+          "neurons": 10,
+          "spikes": 69,
+          "mean_rate": 0.01078125,
+          "per_timestep_rate": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.00625,
+            0.0328125,
+            0.0296875,
+            0.0390625
+          ],
+          "dead_fraction": 0.7,
+          "saturated_fraction": 0.0,
+          "first_spike_step_mean": 7.942028985507246,
+          "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+          "never_fired_sample_neuron_fraction": 0.8921875,
+          "spikes_per_neuron": [
+            0,
+            12,
+            0,
+            0,
+            56,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "spikes_per_neuron_truncated": false,
+          "top_neurons": [
+            {
+              "neuron": 4,
+              "spikes": 56
+            },
+            {
+              "neuron": 1,
+              "spikes": 12
+            },
+            {
+              "neuron": 9,
+              "spikes": 1
+            },
+            {
+              "neuron": 2,
+              "spikes": 0
+            },
+            {
+              "neuron": 3,
+              "spikes": 0
+            },
+            {
+              "neuron": 5,
+              "spikes": 0
+            },
+            {
+              "neuron": 6,
+              "spikes": 0
+            },
+            {
+              "neuron": 0,
+              "spikes": 0
+            },
+            {
+              "neuron": 7,
+              "spikes": 0
+            },
+            {
+              "neuron": 8,
+              "spikes": 0
+            }
+          ]
+        }
+      }
+    ],
+    "sources": [
+      {
+        "collector": "torch_hooks",
+        "status": "captured",
+        "attribution": "region",
+        "capabilities": [
+          "layer",
+          "timestep",
+          "macs",
+          "spikes",
+          "persistent_state",
+          "domain",
+          "label"
+        ],
+        "reason": "",
+        "detail": {
+          "layers": 6,
+          "regions": 42,
+          "registration": "mac-and-neuron",
+          "region_timing": "cpu-launch-window",
+          "labels": "record_function"
+        }
+      },
+      {
+        "collector": "torch_profiler",
+        "status": "partial",
+        "attribution": "region",
+        "capabilities": [
+          "op_time",
+          "op_memory",
+          "call_count",
+          "label_join"
+        ],
+        "reason": "라벨 밖에서 실행된 연산이 존재 — 모듈 트리에 나타나지 않는 함수형 호출(F.linear 등)과 프로파일러 자체 비용이 여기 포함된다",
+        "detail": {
+          "keyed_regions": 42,
+          "matched_regions": 42,
+          "attributed_us": 5148.415,
+          "unattributed_us": 595.293,
+          "attribution_rate": 0.896357,
+          "unattributed_events": 45,
+          "unattributed_top": [
+            {
+              "op": "aten::max_pool2d",
+              "self_time_us": 151.397
+            },
+            {
+              "op": "aten::relu",
+              "self_time_us": 146.499
+            },
+            {
+              "op": "aten::clamp_min",
+              "self_time_us": 125.997
+            },
+            {
+              "op": "aten::add",
+              "self_time_us": 77.2
+            },
+            {
+              "op": "aten::max_pool2d_with_indices",
+              "self_time_us": 30.9
+            },
+            {
+              "op": "aten::fill_",
+              "self_time_us": 16.6
+            },
+            {
+              "op": "aten::zeros_like",
+              "self_time_us": 15.0
+            },
+            {
+              "op": "aten::zero_",
+              "self_time_us": 9.0
+            },
+            {
+              "op": "aten::empty_like",
+              "self_time_us": 8.8
+            },
+            {
+              "op": "aten::view",
+              "self_time_us": 7.9
+            }
+          ],
+          "gpu_us": 10312.0,
+          "gpu_ops": 653,
+          "instrument_us": 657.285,
+          "instrument_top": [
+            {
+              "op": "aten::_to_copy",
+              "self_time_us": 163.096
+            },
+            {
+              "op": "aten::copy_",
+              "self_time_us": 161.698
+            },
+            {
+              "op": "aten::detach",
+              "self_time_us": 160.295
+            },
+            {
+              "op": "aten::to",
+              "self_time_us": 74.897
+            },
+            {
+              "op": "aten::empty_strided",
+              "self_time_us": 51.799
+            },
+            {
+              "op": "detach",
+              "self_time_us": 45.5
+            }
+          ]
+        }
+      },
+      {
+        "collector": "perf",
+        "status": "unavailable",
+        "attribution": "process-global",
+        "capabilities": [
+          "cycles",
+          "instructions",
+          "ipc",
+          "cache_misses",
+          "page_faults"
+        ],
+        "reason": "perf 미설치",
+        "detail": {}
+      },
+      {
+        "collector": "nsight_systems",
+        "status": "unavailable",
+        "attribution": "region",
+        "capabilities": [
+          "cuda_api",
+          "kernel_timeline",
+          "nvtx_ranges"
+        ],
+        "reason": "nsys 미설치",
+        "detail": {}
+      },
+      {
+        "collector": "nsight_compute",
+        "status": "unavailable",
+        "attribution": "region",
+        "capabilities": [
+          "kernel_counters",
+          "occupancy",
+          "memory_bandwidth"
+        ],
+        "reason": "어댑터 미구현 (도구는 사용 가능)",
+        "detail": {}
+      },
+      {
+        "collector": "mlir_static",
+        "status": "unavailable",
+        "attribution": "static-name",
+        "capabilities": [
+          "ir_op_counts",
+          "static_memory",
+          "lowering_expansion"
+        ],
+        "reason": "컴파일 산출물 경로 미지정 (.mlir / .ll)",
+        "detail": {}
+      }
+    ],
+    "ir_levels": [],
+    "metrics": {
+      "executed_macs": 21585920,
+      "output_latency": {
+        "layer_id": "lif2",
+        "first_spike_step": 6,
+        "timesteps": 10,
+        "unit": "타임스텝 인덱스 (0부터)"
+      },
+      "state_bytes": 18944,
+      "synops": 118272
+    },
+    "warnings": [],
+    "schema": "xnn.trace",
+    "version": 1
+  }
+}
