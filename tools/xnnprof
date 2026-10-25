@@ -3,6 +3,11 @@
 
   tools/xnnprof --model repeated_dnn_snn --steps 10 --batch 64 --train 12000
   tools/xnnprof --model all --steps 10 --batch 64 --train 6000
+
+GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems로 묶으려면
+
+  nsys profile -t cuda,nvtx,osrt -o out/fcsnn/nsys \
+      python tools/xnnprof --model fcsnn --device cuda --train 0
 """
 
 from __future__ import annotations
@@ -45,26 +50,40 @@ def main() -> int:
     ap.add_argument("--data", default="data")
     ap.add_argument("--raw-input", action="store_true")
     ap.add_argument("--out", default="out")
+    ap.add_argument("--device", default="cpu",
+                    help="cpu | cuda. cuda에서는 NVTX 라벨을 함께 내보낸다")
+    ap.add_argument("--cover-leaves", action="store_true",
+                    help="자식이 없는 모든 모듈에 계측 지점을 삽입한다")
     args = ap.parse_args()
 
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
-    torch.set_num_threads(1)
+    dev = args.device
+    if dev.startswith("cuda") and not torch.cuda.is_available():
+        print("CUDA를 사용할 수 없다 — nvidia-smi와 torch.version.cuda를 확인한다",
+              file=sys.stderr)
+        return 1
+    if dev == "cpu":
+        torch.set_num_threads(1)
 
     for name in names:
         torch.manual_seed(0)
         model, fkw = build(name, num_steps=args.steps)
+        model = model.to(dev)
         if args.train:
             opt = torch.optim.Adam(model.parameters(), lr=1e-3)
             lossf = nn.CrossEntropyLoss()
             model.train()
             for xb, yb in mnist(args.batch, args.train, True, args.data, args.raw_input):
+                xb, yb = xb.to(dev), yb.to(dev)
                 opt.zero_grad()
                 lossf(model(xb, **fkw), yb).backward()
                 opt.step()
         xb, yb = next(iter(mnist(args.batch, args.batch, False, args.data, args.raw_input)))
+        xb, yb = xb.to(dev), yb.to(dev)
         out_dir = os.path.join(args.out, name)
         trace = profile(model, xb, model_id=name, timesteps=args.steps,
-                        batch=args.batch, out_dir=out_dir, **fkw)
+                        batch=args.batch, out_dir=out_dir, device=dev,
+                        cover_leaves=args.cover_leaves, **fkw)
         model.eval()
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
@@ -72,7 +91,8 @@ def main() -> int:
         trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"))
         print("=" * 76)
         print(summary(trace))
-        print(f"\n-> {out_dir}/xnn-trace.json  (배치 정확도 {acc:.1%})")
+        print(f"\n-> {out_dir}/xnn-trace.json  "
+              f"(device {dev}, 배치 정확도 {acc:.1%})")
         print()
     return 0
 

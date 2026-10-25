@@ -224,8 +224,10 @@ class TorchHookCollector(Collector):
                 spk = output[0] if isinstance(output, tuple) else output
                 mem = output[1] if isinstance(output, tuple) and len(output) > 1 else None
                 if torch.is_tensor(spk):
+                    # 장치에 둔 채로 모은다. 스텝마다 .cpu()를 부르면 GPU에서
+                    # 매 스텝 동기화가 걸려 계측이 실행 순서를 바꾼다.
                     self._spikes.setdefault(lid, []).append(
-                        spk.detach().to(torch.uint8).cpu())
+                        spk.detach().to(torch.uint8))
                 if mem is not None and torch.is_tensor(mem):
                     a["state_bytes"] = int(mem.numel() * mem.element_size())
             if inst is not None:
@@ -236,7 +238,7 @@ class TorchHookCollector(Collector):
     def spike_arrays(self) -> dict:
         import numpy as np
         import torch
-        return {k: np.ascontiguousarray(torch.stack(v).numpy(), dtype=np.uint8)
+        return {k: np.ascontiguousarray(torch.stack(v).cpu().numpy(), dtype=np.uint8)
                 for k, v in self._spikes.items() if v}
 
     def collect(self, trace: Trace, spike_dir: str = "", **kw: Any):
