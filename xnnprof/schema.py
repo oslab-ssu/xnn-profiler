@@ -22,6 +22,7 @@ class Region:
     dur_us: float
     domain: str = DENSE
     parent_id: Optional[int] = None
+    ops: dict[str, float] = field(default_factory=dict)   # op 이름 -> self time (us)
 
 
 @dataclass
@@ -33,8 +34,6 @@ class Layer:
     domain: str = DENSE
     spike_driven: bool = False
     macs: int = 0
-    useful_macs: Optional[int] = None
-    input_nonzero_fraction: Optional[float] = None
     self_time_us: Optional[float] = None
     state_bytes: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
@@ -91,7 +90,7 @@ class Trace:
     spikes: list[SpikeRef] = field(default_factory=list)
     sources: list[Source] = field(default_factory=list)
     ir_levels: list[IrLevel] = field(default_factory=list)
-    headroom: dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def layer(self, layer_id: str) -> Optional[Layer]:
@@ -100,12 +99,9 @@ class Trace:
     def executed_macs(self) -> int:
         return sum(l.macs for l in self.layers)
 
-    def useful_macs(self) -> int:
-        return sum(l.useful_macs if l.useful_macs is not None else l.macs
-                   for l in self.layers)
-
-    def looped_macs(self) -> int:
-        return sum(l.macs for l in self.layers if l.in_loop)
+    def region(self, layer_id: str, timestep: Optional[int]) -> Optional[Region]:
+        return next((r for r in self.regions
+                     if r.layer_id == layer_id and r.timestep == timestep), None)
 
     def to_dict(self) -> dict:
         d = asdict(self)

@@ -5,7 +5,8 @@ Perfetto · Speedscope · Tracy · 기존 VS Code extension이 모두 이 포맷
 
   tid        레이어 1개 = 트랙 1개. 시간축 루프가 그 트랙의 반복 슬라이스로 보인다
   cat        dense | spike | state — 뷰어에서 도메인 필터
-  args       레이어별 MAC · 입력 nonzero · 유효 MAC · 스파이크 구동 여부
+  args       통합 키(timestep) · 레이어별 MAC · 스파이크 구동 여부 ·
+             그 구간에 귀속된 PyTorch Profiler op별 self time
   ph="C"     타임스텝별 스파이크 발화율 카운터 (Perfetto에서 그래프로 뜬다)
   "xnn"      최상위 확장 키. 뷰어는 traceEvents만 읽으므로 무시하고 지나간다
 """
@@ -48,12 +49,12 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
             args.update({
                 "op_type": layer.op_type,
                 "macs_total": layer.macs,
-                "useful_macs": layer.useful_macs,
-                "input_nonzero_fraction": layer.input_nonzero_fraction,
                 "spike_driven": layer.spike_driven,
                 "in_loop": layer.in_loop,
                 "state_bytes": layer.state_bytes,
             })
+        if r.ops:
+            args["ops_self_time_us"] = r.ops
         name = (f"{r.layer_id}@t{r.timestep}" if r.timestep is not None else r.layer_id)
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),

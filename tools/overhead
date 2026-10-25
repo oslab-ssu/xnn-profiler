@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""계측 비용 측정 — 계측 지점 삽입이 실행 시간을 얼마나 늘리는지.
+
+측정 지점 삽입은 관측 대상을 바꾼다. 네 조건을 같은 입력으로 반복 측정하여
+hook 자체의 비용과 라벨 개시·종료 비용, 프로파일러 비용을 분리한다.
+
+  base      계측 없음
+  hook      hook만 (라벨 없음)
+  label     hook + record_function 라벨 개시·종료
+  prof      hook + 라벨 + PyTorch Profiler 세션
+
+  tools/overhead --model all --steps 10 --batch 64 --repeat 20
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import statistics
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from xnnprof.collect.torch_hooks import TorchHookCollector   # noqa: E402
+from xnnprof.models import REGISTRY, build                   # noqa: E402
+
+
+def timed(fn, repeat: int, device: str) -> tuple[float, float]:
+    import torch
+    samples = []
+    for _ in range(repeat):
+        if device == "cuda":
+            torch.cuda.synchronize()
+        t = time.perf_counter()
+        fn()
+        if device == "cuda":
+            torch.cuda.synchronize()
+        samples.append((time.perf_counter() - t) * 1e3)
+    return statistics.median(samples), statistics.stdev(samples) if repeat > 1 else 0.0
+
+
+def main() -> int:
+    import torch
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="all", choices=sorted(REGISTRY) + ["all"])
+    ap.add_argument("--steps", type=int, default=10)
+    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--repeat", type=int, default=20)
+    ap.add_argument("--device", default="cpu")
+    args = ap.parse_args()
+
+    dev = args.device
+    if dev == "cuda" and not torch.cuda.is_available():
+        print("cuda 사용 불가 — cpu로 측정한다", file=sys.stderr)
+        dev = "cpu"
+    torch.set_num_threads(1)
+    names = sorted(REGISTRY) if args.model == "all" else [args.model]
+
+    print(f"device={dev}  batch={args.batch}  T={args.steps}  repeat={args.repeat}")
+    print(f"{'모델':18s} {'조건':6s} {'중앙값(ms)':>11s} {'표준편차':>9s} {'base 대비':>10s}")
+    for name in names:
+        torch.manual_seed(0)
+        model, fkw = build(name, num_steps=args.steps)
+        model = model.to(dev).eval()
+        x = torch.rand(args.batch, 1, 28, 28, device=dev)
+
+        def forward():
+            with torch.no_grad():
+                model(x, **fkw)
+
+        forward()                                   # 워밍업: 지연 초기화 제외
+        base, base_sd = timed(forward, args.repeat, dev)
+        rows = [("base", base, base_sd)]
+
+        for tag, labels in (("hook", False), ("label", True)):
+            c = TorchHookCollector(emit_labels=labels)
+            c.attach(model)
+            m, sd = timed(forward, args.repeat, dev)
+            c.detach()
+            rows.append((tag, m, sd))
+
+        from torch.profiler import ProfilerActivity, profile as tprofile
+        acts = [ProfilerActivity.CPU] + ([ProfilerActivity.CUDA] if dev == "cuda" else [])
+
+        def with_prof():
+            c = TorchHookCollector(emit_labels=True)
+            c.attach(model)
+            with tprofile(activities=acts, profile_memory=True, record_shapes=False):
+                forward()
+            c.detach()
+
+        m, sd = timed(with_prof, args.repeat, dev)
+        rows.append(("prof", m, sd))
+
+        for tag, m, sd in rows:
+            ratio = "—" if tag == "base" else f"{m / base:>9.2f}x"
+            print(f"{name:18s} {tag:6s} {m:11.3f} {sd:9.3f} {ratio:>10s}")
+        print()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

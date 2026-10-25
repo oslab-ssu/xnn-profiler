@@ -1,7 +1,10 @@
-"""차별화 지표 — 절감 상한.
+"""신규 측정 항목 중 trace 전체를 보아야 산출되는 값.
 
-기존 프로파일러는 '지금 얼마 걸렸나'를 준다. 여기서는 '바꾸면 얼마 버나'를 낸다.
-전부 상한(upper bound)이다. 실제 이득은 커널·런타임 구현에 달려 있다.
+레이어 단위 값은 수집기가, 스파이크 배열에서 나오는 값은 observations가 낸다.
+여기서는 그 둘을 모아야 정해지는 두 항목만 산출한다.
+
+  출력 발생 지연  출력 레이어의 스파이크율이 최초로 0이 아닌 타임스텝
+  상태 메모리     타임스텝 사이에 유지되는 상태 텐서 크기의 합
 """
 
 from __future__ import annotations
@@ -9,45 +12,52 @@ from __future__ import annotations
 from .schema import Trace
 
 
-def headroom(trace: Trace) -> dict:
-    exec_macs = trace.executed_macs()
-    useful = trace.useful_macs()
-    looped = trace.looped_macs()
+def execution_order(trace: Trace) -> list[str]:
+    """구간의 시작 시각 순으로 레이어가 처음 등장하는 순서."""
+    seen, out = set(), []
+    for r in sorted(trace.regions, key=lambda r: r.ts_us):
+        if r.layer_id not in seen:
+            seen.add(r.layer_id)
+            out.append(r.layer_id)
+    return out
 
-    sparse_skippable = exec_macs - useful
-    spike_part = sum((l.macs - (l.useful_macs if l.useful_macs is not None else l.macs))
-                     for l in trace.layers if l.spike_driven)
 
-    first_useful, out_layer = None, None
-    for sp in trace.spikes:
-        series = (sp.metrics or {}).get("per_timestep_rate") or []
-        nz = [i for i, r in enumerate(series) if r and r > 0]
-        if nz and (first_useful is None or nz[0] > first_useful):
-            first_useful, out_layer = nz[0], sp.layer_id
+def output_layer(trace: Trace) -> str:
+    """실행 순서상 가장 마지막에 오는 스파이크 레이어를 출력 레이어로 본다."""
+    order = execution_order(trace)
+    spiking = {sp.layer_id for sp in trace.spikes}
+    for lid in reversed(order):
+        if lid in spiking:
+            return lid
+    return ""
 
-    T = trace.timesteps or 0
-    t_trim = (looped * (first_useful / T)) if (T and first_useful) else 0
 
+def output_latency(trace: Trace):
+    """스파이크 레이어가 없는 모델(순수 DNN)에서는 정의되지 않는다."""
+    lid = output_layer(trace)
+    sp = next((s for s in trace.spikes if s.layer_id == lid), None)
+    if sp is None:
+        return None
+    series = (sp.metrics or {}).get("per_timestep_rate") or []
+    first = next((i for i, r in enumerate(series) if r and r > 0), None)
     return {
-        "executed_macs": exec_macs,
-        "useful_macs": useful,
-        "sparse_kernel": {
-            "skippable_macs": sparse_skippable,
-            "fraction_of_total": round(sparse_skippable / exec_macs, 6) if exec_macs else 0.0,
-            "from_spike_driven_layers": spike_part,
-            "note": "입력이 0인 MAC. sparse 커널이 전부 생략한다고 가정한 상한",
-        },
-        "time_loop": {
-            "looped_macs": looped,
-            "fraction_of_total": round(looped / exec_macs, 6) if exec_macs else 0.0,
-            "note": "시간축 루프 안의 연산. T 단축·이벤트 구동이 영향을 주는 범위",
-        },
-        "timestep_trim": {
-            "first_output_step": first_useful,
-            "output_layer": out_layer,
-            "skippable_macs": int(t_trim),
-            "fraction_of_total": round(t_trim / exec_macs, 6) if exec_macs else 0.0,
-            "note": "출력 레이어가 발화하기 전 스텝. 조기 종료 여지의 상한",
-        },
-        "persistent_state_bytes": sum(l.state_bytes for l in trace.layers),
+        "layer_id": lid,
+        "first_spike_step": first,
+        "timesteps": len(series),
+        "unit": "타임스텝 인덱스 (0부터)",
     }
+
+
+def snn_metrics(trace: Trace) -> dict:
+    """산출되지 않는 항목은 키를 두지 않는다. '0'과 '정의되지 않음'은 다르다."""
+    out = {"executed_macs": trace.executed_macs()}
+    state = sum(l.state_bytes for l in trace.layers)
+    lat = output_latency(trace)
+    if lat is not None:
+        out["output_latency"] = lat
+    if state:
+        out["state_bytes"] = state
+    syn = [sp.synops for sp in trace.spikes if sp.synops is not None]
+    if syn:
+        out["synops"] = sum(syn)
+    return out

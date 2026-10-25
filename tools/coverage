@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""계측 지점 누락 측정 — 등록 규칙에 따라 귀속되지 않는 시간이 얼마인지.
+
+hook은 모델 트리를 순회하여 등록되므로, 트리에 모듈로 나타나지 않는 연산과
+등록 대상에서 제외된 모듈의 연산은 어떤 구간에도 속하지 않는다. 그 몫을
+실측하여 규칙 두 가지를 비교한다.
+
+  mac+neuron     MAC이 발생하는 모듈 + SNN 뉴런 모듈 (현재 규칙)
+  leaf-modules   자식이 없는 모든 모듈 (ReLU · MaxPool2d · Flatten 포함)
+
+  tools/coverage --steps 10 --batch 64
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from xnnprof.collect.torch_hooks import TorchHookCollector   # noqa: E402
+from xnnprof.collect.torch_prof import TorchProfilerCollector  # noqa: E402
+from xnnprof.models import REGISTRY, build                   # noqa: E402
+from xnnprof.schema import Trace                             # noqa: E402
+
+
+def measure(name: str, steps: int, batch: int, leaves: bool, memory: bool) -> dict:
+    import torch
+    from torch.profiler import ProfilerActivity, profile as tprofile
+
+    torch.manual_seed(0)
+    model, fkw = build(name, num_steps=steps)
+    model.eval()
+    x = torch.rand(batch, 1, 28, 28)
+    with torch.no_grad():
+        model(x, **fkw)                              # 워밍업: 지연 초기화 제외
+
+    trace = Trace(run_id="coverage", model_id=name, timesteps=steps, batch=batch)
+    c = TorchHookCollector(cover_leaves=leaves)
+    c.attach(model)
+    with tprofile(activities=[ProfilerActivity.CPU], profile_memory=memory) as prof:
+        with torch.no_grad():
+            model(x, **fkw)
+    c.detach()
+    c.collect(trace)
+    s = TorchProfilerCollector(prof).collect(trace)
+    d = dict(s.detail)
+    d["regions"] = len(trace.regions)
+    d["layers"] = len(trace.layers)
+    return d
+
+
+def main() -> int:
+    import torch
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="all", choices=sorted(REGISTRY) + ["all"])
+    ap.add_argument("--steps", type=int, default=10)
+    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--repeat", type=int, default=3)
+    ap.add_argument("--profile-memory", action="store_true")
+    args = ap.parse_args()
+
+    torch.set_num_threads(1)
+    names = sorted(REGISTRY) if args.model == "all" else [args.model]
+
+    print(f"batch={args.batch}  T={args.steps}  repeat={args.repeat}"
+          f"  profile_memory={args.profile_memory}")
+    print(f"{'모델':18s} {'등록 규칙':14s} {'레이어':>6s} {'구간':>5s} "
+          f"{'귀속률(중앙)':>12s} {'미귀속(us)':>11s} {'계측(us)':>9s}")
+    for name in names:
+        for leaves in (False, True):
+            runs = [measure(name, args.steps, args.batch, leaves, args.profile_memory)
+                    for _ in range(args.repeat)]
+            runs.sort(key=lambda d: d["attribution_rate"])
+            mid = runs[len(runs) // 2]
+            tag = "leaf-modules" if leaves else "mac+neuron"
+            print(f"{name:18s} {tag:14s} {mid['layers']:6d} {mid['regions']:5d} "
+                  f"{mid['attribution_rate']:12.1%} {mid['unattributed_us']:11,.0f} "
+                  f"{mid['instrument_us']:9,.0f}")
+            for o in (mid.get("unattributed_top") or [])[:3]:
+                print(f"{'':33s} 미귀속 {o['op']:32s} {o['self_time_us']:>10,.1f}us")
+        print()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

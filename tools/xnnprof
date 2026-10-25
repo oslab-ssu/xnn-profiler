@@ -13,6 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from xnnprof.emit import trace_json                 # noqa: E402
 from xnnprof.models import REGISTRY, build          # noqa: E402
 from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
@@ -68,6 +69,7 @@ def main() -> int:
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
         trace.env["batch_accuracy"] = round(acc, 4)
+        trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"))
         print("=" * 76)
         print(summary(trace))
         print(f"\n-> {out_dir}/xnn-trace.json  (배치 정확도 {acc:.1%})")
