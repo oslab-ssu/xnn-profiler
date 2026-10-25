@@ -105,9 +105,11 @@ class TorchHookCollector(Collector):
                     "persistent_state", "domain", "label")
 
     def __init__(self, emit_labels: bool = True, emit_nvtx: bool = False,
-                 cover_leaves: bool = False):
+                 cover_leaves: bool = False, sync_regions: bool = False):
         self.emit_labels = emit_labels
         self.cover_leaves = cover_leaves
+        self.sync_regions = sync_regions
+        self._cuda: bool | None = None
         self.emit_nvtx = emit_nvtx
         self._handles: list = []
         self._acc: dict[str, dict] = {}
@@ -122,6 +124,23 @@ class TorchHookCollector(Collector):
         except Exception as e:
             return False, f"torch import 실패: {e}"
         return True, "ok"
+
+    def _sync(self) -> None:
+        """구간 경계에서 GPU를 기다린다.
+
+        GPU는 비동기로 실행되므로 hook이 재는 시간은 커널 실행 시간이 아니라
+        실행 요청 구간이다. 큐가 차는 시점에 호출된 레이어가 앞선 레이어의
+        대기 시간을 떠안아, 연산이 없는 뉴런 모듈이 행렬곱보다 오래 걸린 것처럼
+        보인다. 경계마다 동기화하면 구간 시간이 그 레이어의 실제 GPU 시간이
+        되지만, 레이어 간 겹침이 사라지므로 합계는 실제 실행 시간보다 길어진다.
+        """
+        if not self.sync_regions:
+            return
+        import torch
+        if self._cuda is None:
+            self._cuda = torch.cuda.is_available()
+        if self._cuda:
+            torch.cuda.synchronize()
 
     # ---------------- hook 부착 ----------------
     def attach(self, model) -> None:
@@ -177,6 +196,7 @@ class TorchHookCollector(Collector):
 
     def _pre(self, lid: str):
         def pre(mod, inputs):
+            self._sync()                  # 앞선 레이어의 커널을 비운 뒤 시작한다
             a = self._acc.setdefault(lid, {})
             step = a.get("calls", 0)
             self._open_labels.setdefault(lid, []).append(
@@ -187,6 +207,7 @@ class TorchHookCollector(Collector):
     def _post(self, lid: str):
         def post(mod, inputs, output):
             import torch
+            self._sync()                  # 이 레이어의 커널이 끝나기를 기다린다
             now = time.perf_counter()
             # 라벨을 먼저 닫는다. 아래의 텐서 검사·복사는 계측 자신의 비용이므로
             # 라벨 안에 남으면 그 레이어의 연산 시간으로 잘못 귀속된다.
@@ -272,4 +293,6 @@ class TorchHookCollector(Collector):
                             regions=len(self._regions),
                             registration="leaf-modules" if self.cover_leaves
                                          else "mac-and-neuron",
+                            region_timing="gpu-synchronized" if self.sync_regions
+                                          else "cpu-launch-window",
                             labels="record_function" if self.emit_labels else "none")

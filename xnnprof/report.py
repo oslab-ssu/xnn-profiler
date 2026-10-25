@@ -8,7 +8,13 @@ from .schema import Trace
 def summary(trace: Trace) -> str:
     out = []
     e = trace.executed_macs() or 1
-    out.append(f"model={trace.model_id}  T={trace.timesteps}  batch={trace.batch}")
+    dev = (trace.env or {}).get("device", "cpu")
+    rt = (trace.env or {}).get("region_timing", "")
+    out.append(f"model={trace.model_id}  T={trace.timesteps}  batch={trace.batch}  "
+               f"device={dev}" + (f"  구간시간={rt}" if rt else ""))
+    if rt == "cpu-launch-window" and dev.startswith("cuda"):
+        out.append("  주의: 구간 시간은 CPU 쪽 실행 요청 구간이다. "
+                   "실제 GPU 시간은 --sync-regions 또는 Nsight Systems로 확인한다")
     out.append("")
     out.append(f"{'레이어':22s} {'도메인':12s} {'호출':>4s} {'MAC':>14s} {'비중':>6s} "
                f"{'hook 시간(us)':>14s} {'상태(B)':>9s}")

@@ -40,6 +40,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             batch: Optional[int] = None, out_dir: str = "out",
             with_torch_profiler: bool = True, device: str = "cpu",
             emit_nvtx: bool = False, cover_leaves: bool = False,
+            sync_regions: bool = False,
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
     """측정 1회.
 
@@ -57,11 +58,14 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     trace = Trace(
         run_id=f"{model_id}-{device}-T{timesteps}-{int(time.time())}",
         model_id=model_id, timesteps=timesteps, batch=batch,
-        env=env_snapshot(device))
+        env=dict(env_snapshot(device),
+                 region_timing=("gpu-synchronized" if (sync_regions and cuda)
+                                else "cpu-launch-window" if cuda else "direct")))
 
     model = model.to(device)
     hooks = TorchHookCollector(emit_nvtx=emit_nvtx or cuda,
-                               cover_leaves=cover_leaves)
+                               cover_leaves=cover_leaves,
+                               sync_regions=sync_regions and cuda)
     ok, why = hooks.available()
     if not ok:
         trace.sources.append(hooks.declare("unavailable", why))

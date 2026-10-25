@@ -63,6 +63,9 @@ def main() -> int:
     ap.add_argument("--out", default="out")
     ap.add_argument("--device", default="cpu",
                     help="cpu | cuda. cuda에서는 NVTX 라벨을 함께 내보낸다")
+    ap.add_argument("--sync-regions", action="store_true",
+                    help="GPU: 구간 경계마다 동기화해 레이어별 실제 GPU 시간을 잰다. "
+                         "레이어 간 겹침이 사라지므로 합계는 실행 시간보다 길어진다")
     ap.add_argument("--cover-leaves", action="store_true",
                     help="자식이 없는 모든 모듈에 계측 지점을 삽입한다")
     args = ap.parse_args()
@@ -96,7 +99,8 @@ def main() -> int:
         out_dir = os.path.join(args.out, name)
         trace = profile(model, xb, model_id=name, timesteps=args.steps,
                         batch=args.batch, out_dir=out_dir, device=dev,
-                        cover_leaves=args.cover_leaves, **fkw)
+                        cover_leaves=args.cover_leaves,
+                        sync_regions=args.sync_regions, **fkw)
         model.eval()
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
