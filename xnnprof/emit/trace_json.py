@@ -55,6 +55,10 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
             })
         if r.ops:
             args["ops_self_time_us"] = r.ops
+        if r.gpu_ops or r.gpu_us:
+            args["gpu_us"] = r.gpu_us
+            args["gpu_ops"] = r.gpu_ops
+            args["gpu_idle_us"] = round(r.dur_us - r.gpu_us, 3)
         name = (f"{r.layer_id}@t{r.timestep}" if r.timestep is not None else r.layer_id)
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),

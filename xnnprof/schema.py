@@ -23,6 +23,8 @@ class Region:
     domain: str = DENSE
     parent_id: Optional[int] = None
     ops: dict[str, float] = field(default_factory=dict)   # op 이름 -> self time (us)
+    gpu_us: float = 0.0        # 이 구간에 귀속된 GPU 커널 시간
+    gpu_ops: int = 0           # 이 구간이 발행한 GPU op 수
 
 
 @dataclass

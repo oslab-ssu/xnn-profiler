@@ -24,6 +24,22 @@ def summary(trace: Trace) -> str:
         out.append(f"{l.layer_id:22s} {dom:12s} {l.calls:4d} {l.macs:14,} "
                    f"{l.macs/e:6.1%} {st:>14s} {l.state_bytes:9,}")
 
+    gpu = [r for r in trace.regions if r.gpu_ops or r.gpu_us]
+    if gpu:
+        agg: dict[str, list[float]] = {}
+        for r in gpu:
+            a = agg.setdefault(r.layer_id, [0.0, 0.0, 0.0])
+            a[0] += r.gpu_ops
+            a[1] += r.gpu_us
+            a[2] += r.dur_us
+        out.append("")
+        out.append(f"{'레이어':22s} {'구간':>4s} {'GPU op/호출':>11s} "
+                   f"{'GPU 커널(us)':>13s} {'구간(us)':>10s} {'GPU 가동률':>10s}")
+        for lid, (ops, gus, dur) in sorted(agg.items(), key=lambda kv: -kv[1][2]):
+            n = sum(1 for r in gpu if r.layer_id == lid)
+            out.append(f"{lid:22s} {n:4d} {ops / n:11.1f} {gus:13,.1f} "
+                       f"{dur:10,.1f} {(gus / dur if dur else 0):10.1%}")
+
     m = trace.metrics
     if m:
         out.append("")
