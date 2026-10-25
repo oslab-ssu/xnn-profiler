@@ -1,0 +1,102 @@
+{
+  "layer_id": "lif2",
+  "timesteps": 10,
+  "batch": 64,
+  "neurons": 10,
+  "path": "out-sync\\fcsnn\\spikes\\spikes_T10_lif2.npy",
+  "sha256": "7276a3102dbd2b7b8c9ef141f34a37f4793a7d77c2eb28ca870afd17155612f2",
+  "quantity": "spikes",
+  "axes": [
+    "time",
+    "batch",
+    "neurons"
+  ],
+  "dt": null,
+  "dt_units": "abstract-step",
+  "state_reset": "subtract",
+  "encoding": "direct",
+  "threshold": null,
+  "beta": null,
+  "metrics": {
+    "timesteps": 10,
+    "batch": 64,
+    "neurons": 10,
+    "spikes": 458,
+    "mean_rate": 0.0715625,
+    "per_timestep_rate": [
+      0.0,
+      0.0046875,
+      0.040625,
+      0.0890625,
+      0.0875,
+      0.1046875,
+      0.0859375,
+      0.10625,
+      0.0890625,
+      0.1078125
+    ],
+    "dead_fraction": 0.0,
+    "saturated_fraction": 0.0,
+    "first_spike_step_mean": 4.615384615384615,
+    "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+    "never_fired_sample_neuron_fraction": 0.6546875,
+    "spikes_per_neuron": [
+      48,
+      91,
+      93,
+      14,
+      7,
+      160,
+      32,
+      7,
+      4,
+      2
+    ],
+    "spikes_per_neuron_truncated": false,
+    "top_neurons": [
+      {
+        "neuron": 5,
+        "spikes": 160
+      },
+      {
+        "neuron": 2,
+        "spikes": 93
+      },
+      {
+        "neuron": 1,
+        "spikes": 91
+      },
+      {
+        "neuron": 0,
+        "spikes": 48
+      },
+      {
+        "neuron": 6,
+        "spikes": 32
+      },
+      {
+        "neuron": 3,
+        "spikes": 14
+      },
+      {
+        "neuron": 4,
+        "spikes": 7
+      },
+      {
+        "neuron": 7,
+        "spikes": 7
+      },
+      {
+        "neuron": 8,
+        "spikes": 4
+      },
+      {
+        "neuron": 9,
+        "spikes": 2
+      }
+    ]
+  },
+  "notes": [],
+  "schema": "ssu.snn.observation",
+  "version": 1
+}

@@ -8,7 +8,8 @@
 GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems로 묶으려면
 
   nsys profile -t cuda,nvtx,osrt -o out/fcsnn/nsys \
-      python tools/xnnprof --model fcsnn --device cuda --train 0
+      python tools/xnnprof --model fcsnn --device cuda --train 0 \
+      --no-torch-profiler
 """
 
 from __future__ import annotations
@@ -63,6 +64,10 @@ def main() -> int:
     ap.add_argument("--out", default="out")
     ap.add_argument("--device", default="cpu",
                     help="cpu | cuda. cuda에서는 NVTX 라벨을 함께 내보낸다")
+    ap.add_argument("--no-torch-profiler", action="store_true",
+                    help="PyTorch Profiler 없이 hook만으로 측정한다. 연산을 여러 개 "
+                         "쏘는 모듈은 op당 프로파일러 비용이 누적되므로, 레이어별 "
+                         "시간을 볼 때나 nsys로 쌀 때는 끈다")
     ap.add_argument("--sync-regions", action="store_true",
                     help="GPU: 구간 경계마다 동기화해 레이어별 실제 GPU 시간을 잰다. "
                          "레이어 간 겹침이 사라지므로 합계는 실행 시간보다 길어진다")
@@ -100,7 +105,8 @@ def main() -> int:
         trace = profile(model, xb, model_id=name, timesteps=args.steps,
                         batch=args.batch, out_dir=out_dir, device=dev,
                         cover_leaves=args.cover_leaves,
-                        sync_regions=args.sync_regions, **fkw)
+                        sync_regions=args.sync_regions,
+                        with_torch_profiler=not args.no_torch_profiler, **fkw)
         model.eval()
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
