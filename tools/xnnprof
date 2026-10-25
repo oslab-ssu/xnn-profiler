@@ -3,6 +3,7 @@
 
   tools/xnnprof --model repeated_dnn_snn --steps 10 --batch 64 --train 12000
   tools/xnnprof --model all --steps 10 --batch 64 --train 6000
+  tools/xnnprof --model all --data ../profiler-verification/data
 
 GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems로 묶으려면
 
@@ -16,7 +17,8 @@ import argparse
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
 
 from xnnprof.emit import trace_json                 # noqa: E402
 from xnnprof.models import REGISTRY, build          # noqa: E402
@@ -24,14 +26,20 @@ from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
 
 
-def mnist(batch: int, n: int, train: bool, root: str, raw: bool):
+def mnist(batch: int, n: int, train: bool, root: str, raw: bool,
+          download: bool = False):
     import torch
     from torchvision import datasets, transforms
     steps = [transforms.ToTensor()]
     if not raw:
         steps.append(transforms.Normalize((0.1307,), (0.3081,)))
-    ds = datasets.MNIST(root, train=train, download=False,
-                        transform=transforms.Compose(steps))
+    try:
+        ds = datasets.MNIST(root, train=train, download=download,
+                            transform=transforms.Compose(steps))
+    except RuntimeError as e:
+        raise SystemExit(
+            f"MNIST를 {os.path.abspath(root)} 에서 찾지 못했다. "
+            f"--data 로 위치를 지정하거나 --download 를 준다.\n  {e}")
     if n and n < len(ds):
         ds = torch.utils.data.Subset(ds, range(n))
     return torch.utils.data.DataLoader(ds, batch_size=batch, shuffle=False)
@@ -47,7 +55,10 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=10)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--train", type=int, default=6000)
-    ap.add_argument("--data", default="data")
+    ap.add_argument("--data", default=os.path.join(REPO, "data"),
+                    help="MNIST 위치. 기본값은 저장소의 data/")
+    ap.add_argument("--download", action="store_true",
+                    help="--data 에 없으면 내려받는다")
     ap.add_argument("--raw-input", action="store_true")
     ap.add_argument("--out", default="out")
     ap.add_argument("--device", default="cpu",
@@ -73,12 +84,14 @@ def main() -> int:
             opt = torch.optim.Adam(model.parameters(), lr=1e-3)
             lossf = nn.CrossEntropyLoss()
             model.train()
-            for xb, yb in mnist(args.batch, args.train, True, args.data, args.raw_input):
+            for xb, yb in mnist(args.batch, args.train, True, args.data,
+                                args.raw_input, args.download):
                 xb, yb = xb.to(dev), yb.to(dev)
                 opt.zero_grad()
                 lossf(model(xb, **fkw), yb).backward()
                 opt.step()
-        xb, yb = next(iter(mnist(args.batch, args.batch, False, args.data, args.raw_input)))
+        xb, yb = next(iter(mnist(args.batch, args.batch, False, args.data,
+                                 args.raw_input, args.download)))
         xb, yb = xb.to(dev), yb.to(dev)
         out_dir = os.path.join(args.out, name)
         trace = profile(model, xb, model_id=name, timesteps=args.steps,
