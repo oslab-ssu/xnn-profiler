@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""소스코드 정적 검사로 계측 지점을 찾을 수 있는지 측정한다.
+
+런타임에 `named_modules()`를 순회하는 현재 방식은 모델 트리에 모듈로 등록된
+호출만 본다. forward 안에서 함수형으로 쓰인 연산(`F.linear`), 텐서 메서드
+(`x.flatten(1)`), 연산자(`+`)는 모듈이 아니므로 잡히지 않는다.
+
+여기서는 모델 소스를 AST로 파싱하여
+  1) forward 안의 호출 지점을 종류별로 분류하고
+  2) `__init__`의 대입문에서 속성 -> 모듈 타입을 역추적하여
+     정적으로 타입을 결정할 수 있는 지점이 어디까지인지
+를 센다. 런타임 순회가 찾는 집합과의 차집합이 곧 누락 지점이다.
+
+트레이스를 함께 주면 정적으로 찾은 지점과 실제로 생성된 구간을 대조하여,
+계측되지 않은 지점을 소스 줄 번호와 함께 보고한다. 자동 삽입은 런타임이
+맡고, 정적 검사는 그 커버리지를 검증하는 역할이다.
+
+  tools/static_scan --file xnnprof/models/__init__.py
+  tools/static_scan --trace out/fcsnn/xnn-trace.json --model FcSnn
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import os
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
+
+MODULE_CALL = "모듈 호출"
+FUNCTIONAL = "함수형 호출"
+TENSOR_METHOD = "텐서 메서드"
+OPERATOR = "연산자"
+OTHER = "기타 호출"
+
+# MAC이 발생하거나 상태를 보유하는 타입만 계측 대상이다 (torch_hooks.targets와 동일)
+TARGET_TYPES = {"Linear", "Conv2d", "Conv1d", "Conv3d"}
+SNN_TYPES = {"Leaky", "Synaptic", "Alpha", "Lapicque", "RLeaky", "RSynaptic"}
+CONTAINERS = {"Sequential", "ModuleList", "ModuleDict"}
+
+
+def attr_types(cls: ast.ClassDef) -> dict[str, str]:
+    """`__init__`의 `self.x = nn.Y(...)` 대입에서 속성 -> 타입을 모은다.
+
+    `nn.Sequential(...)`의 인자가 리터럴 생성자면 자식까지 `dnn1.0` 형태로
+    펼친다. 리터럴 대입만 해석된다 — 설정값으로 만들거나 `setattr`로 붙이거나
+    루프에서 만든 모듈은 실행해 보지 않으면 타입을 알 수 없다.
+    """
+    out: dict[str, str] = {}
+    for fn in cls.body:
+        if not isinstance(fn, ast.FunctionDef) or fn.name != "__init__":
+            continue
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+                continue
+            f = node.value.func
+            tname = f.attr if isinstance(f, ast.Attribute) else (
+                f.id if isinstance(f, ast.Name) else None)
+            if tname is None:
+                continue
+            for t in node.targets:
+                if not (isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name)
+                        and t.value.id == "self"):
+                    continue
+                out[t.attr] = tname
+                if tname not in CONTAINERS:
+                    continue
+                for i, arg in enumerate(node.value.args):   # 자식까지 펼친다
+                    if not isinstance(arg, ast.Call):
+                        continue
+                    g = arg.func
+                    child = g.attr if isinstance(g, ast.Attribute) else (
+                        g.id if isinstance(g, ast.Name) else None)
+                    if child:
+                        out[f"{t.attr}.{i}"] = child
+    return out
+
+
+def classify(node: ast.AST, types: dict[str, str]) -> tuple[str, str, str]:
+    """(종류, 표기, 정적으로 결정된 타입)"""
+    if isinstance(node, ast.BinOp):
+        op = type(node.op).__name__
+        return OPERATOR, {"Add": "+", "Mult": "*", "Sub": "-"}.get(op, op), ""
+    if not isinstance(node, ast.Call):
+        return "", "", ""
+    f = node.func
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+        if f.value.id == "self":
+            return MODULE_CALL, f"self.{f.attr}(...)", types.get(f.attr, "")
+        if f.value.id in ("F", "functional"):
+            return FUNCTIONAL, f"F.{f.attr}(...)", ""
+        if f.value.id == "torch":
+            return FUNCTIONAL, f"torch.{f.attr}(...)", ""
+    if isinstance(f, ast.Attribute):
+        return TENSOR_METHOD, f".{f.attr}(...)", ""
+    if isinstance(f, ast.Name):
+        return OTHER, f"{f.id}(...)", ""
+    return OTHER, "<호출>", ""
+
+
+def trace_layers(path: str) -> set[str]:
+    import json
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    d = d.get("xnn", d)
+    return {r["layer_id"] for r in d.get("regions", [])}
+
+
+def covered(attr: str, layers: set[str]) -> str:
+    """속성 이름이 트레이스의 layer_id로 나타났는지.
+
+    숫자 이름은 수집기가 `dnn1.0:Conv2d`로 정규화하고, 컨테이너는 자식으로
+    나타난다. 두 경우를 모두 맞춘다.
+    """
+    if attr in layers:
+        return attr
+    hits = sorted(l for l in layers
+                  if l.startswith(attr + ".") or l.startswith(attr + ":"))
+    return ", ".join(hits)
+
+
+def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
+    tree = ast.parse(open(path, encoding="utf-8").read(), filename=path)
+    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+    if not classes:
+        print(f"{path}: nn.Module 정의 없음")
+        return
+
+    for cls in classes:
+        if only and cls.name != only:
+            continue
+        fwd = next((f for f in cls.body
+                    if isinstance(f, ast.FunctionDef) and f.name == "forward"), None)
+        if fwd is None:
+            continue
+        types = attr_types(cls)
+        print("=" * 84)
+        print(f"class {cls.name}   __init__에서 타입이 밝혀진 속성 {len(types)}개")
+        for k, v in types.items():
+            mark = ("계측 대상" if v in TARGET_TYPES | SNN_TYPES else
+                    "컨테이너 — 자식을 펼쳤다" if v in CONTAINERS else "대상 아님")
+            print(f"    self.{k:14s} = {v:12s} {mark}")
+
+        rows, counts = [], {}
+        for node in ast.walk(fwd):
+            kind, text, tname = classify(node, types)
+            if not kind:
+                continue
+            counts[kind] = counts.get(kind, 0) + 1
+            rows.append((node.lineno, kind, text, tname))
+
+        print(f"\n  forward 안의 지점 {len(rows)}개")
+        print(f"  {'줄':>4s}  {'종류':12s} {'표기':24s} {'정적 타입':14s} 런타임 순회")
+        for lineno, kind, text, tname in sorted(rows):
+            if kind == MODULE_CALL:
+                if tname in CONTAINERS:
+                    caught = "자식만 (이름은 인덱스)"
+                elif tname in TARGET_TYPES | SNN_TYPES:
+                    caught = "잡음"
+                elif tname:
+                    caught = "대상 아님"
+                else:
+                    caught = "타입 미상"
+            else:
+                caught = "놓침"
+            print(f"  {lineno:4d}  {kind:12s} {text:24s} {tname or '-':14s} {caught}")
+
+        if layers is not None:
+            print("  트레이스 대조 — 정적으로 찾은 지점이 실제로 계측되었는가")
+            seen, gaps = set(), []
+            for lineno, kind, text, tname in sorted(rows):
+                if kind == MODULE_CALL:
+                    attr = text[len("self."):-len("(...)")]
+                    kids = ({k: v for k, v in types.items()
+                             if k.startswith(attr + ".")}
+                            if tname in CONTAINERS else {attr: tname})
+                    for name, ctype in sorted(kids.items()) or [(attr, tname)]:
+                        if name in layers or covered(name, layers):
+                            hit = covered(name, layers)
+                            seen.update(hit.split(", "))
+                            print(f"    {lineno:4d}  self.{name:14s} {ctype:12s} "
+                                  f"-> 구간 {hit}")
+                        else:
+                            why = ("계측 누락" if ctype in TARGET_TYPES | SNN_TYPES
+                                   else "등록 규칙에서 제외")
+                            gaps.append((lineno, f"self.{name}", ctype or "타입 미상", why))
+                else:
+                    gaps.append((lineno, text, kind, "모듈이 아니므로 구조적 불가"))
+            for lineno, what, why, how in sorted(gaps):
+                print(f"    {lineno:4d}  {what:20s} {why:14s} {how}")
+            extra = layers - seen
+            if extra:
+                print(f"    소스에 없는 구간 {len(extra)}개: {', '.join(sorted(extra))}")
+            print(f"    계측된 지점 {len(seen)} / 미계측 {len(gaps)}")
+            print()
+
+        missed = sum(v for k, v in counts.items() if k != MODULE_CALL)
+        print(f"\n  요약  모듈 호출 {counts.get(MODULE_CALL, 0)} / "
+              f"모듈 아닌 지점 {missed} "
+              f"(함수형 {counts.get(FUNCTIONAL, 0)}, "
+              f"텐서 메서드 {counts.get(TENSOR_METHOD, 0)}, "
+              f"연산자 {counts.get(OPERATOR, 0)}, "
+              f"기타 {counts.get(OTHER, 0)})")
+        print()
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--file", default=os.path.join(REPO, "xnnprof", "models", "__init__.py"))
+    ap.add_argument("--trace", default="", help="대조할 xnn-trace.json")
+    ap.add_argument("--model", default="", help="클래스 이름 하나만 본다")
+    args = ap.parse_args()
+    scan(args.file, trace_layers(args.trace) if args.trace else None, args.model)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
