@@ -6,3 +6,5 @@ venv/
 /out/
 /data/
 *.npy
+/weights/
+/out-*/

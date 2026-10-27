@@ -121,8 +121,8 @@
       "ph": "X",
       "name": "dnn1.0:Conv2d@t0",
       "cat": "dense",
-      "ts": 955.1,
-      "dur": 185.8,
+      "ts": 729.1,
+      "dur": 363.1,
       "pid": 1,
       "tid": 2,
       "args": {
@@ -133,13 +133,13 @@
         "in_loop": false,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::cudnn_convolution": 85.998,
-          "aten::_convolution": 24.8,
-          "aten::add_": 10.399,
-          "aten::convolution": 9.0,
-          "aten::conv2d": 8.3,
-          "aten::reshape": 3.7,
-          "aten::view": 3.1
+          "aten::_convolution": 197.996,
+          "aten::cudnn_convolution": 83.099,
+          "aten::add_": 10.1,
+          "aten::conv2d": 9.6,
+          "aten::convolution": 8.899,
+          "aten::reshape": 4.299,
+          "aten::view": 2.8
         }
       }
     },
@@ -147,8 +147,8 @@
       "ph": "X",
       "name": "snn1_fc@t0",
       "cat": "dense",
-      "ts": 1646.0,
-      "dur": 113.3,
+      "ts": 1644.9,
+      "dur": 160.1,
       "pid": 1,
       "tid": 1,
       "args": {
@@ -159,12 +159,12 @@
         "in_loop": false,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 66.299,
-          "aten::linear": 11.499,
-          "aten::t": 8.5,
-          "aten::transpose": 5.6,
-          "aten::empty": 4.2,
-          "aten::as_strided": 2.1
+          "aten::addmm": 54.499,
+          "aten::linear": 10.3,
+          "aten::t": 7.2,
+          "aten::transpose": 5.599,
+          "aten::empty": 3.9,
+          "aten::as_strided": 2.6
         }
       }
     },
@@ -172,8 +172,8 @@
       "ph": "X",
       "name": "lif1@t0",
       "cat": "state",
-      "ts": 2019.9,
-      "dur": 740.4,
+      "ts": 1983.5,
+      "dur": 446.3,
       "pid": 1,
       "tid": 5,
       "args": {
@@ -184,19 +184,19 @@
         "in_loop": true,
         "state_bytes": 16384,
         "ops_self_time_us": {
-          "aten::copy_": 116.898,
-          "FastSigmoid": 54.698,
-          "aten::sub": 46.5,
-          "aten::mul": 40.699,
-          "aten::gt": 40.498,
-          "aten::clamp": 28.3,
-          "aten::_to_copy": 22.4,
-          "aten::clone": 16.9,
-          "aten::to": 10.0,
-          "aten::empty_strided": 8.9,
-          "aten::add": 7.6,
-          "aten::detach": 4.5,
-          "detach": 3.0
+          "FastSigmoid": 39.799,
+          "aten::sub": 33.299,
+          "aten::copy_": 31.099,
+          "aten::gt": 23.0,
+          "aten::mul": 18.7,
+          "aten::_to_copy": 17.099,
+          "aten::clamp": 12.999,
+          "aten::clone": 7.9,
+          "aten::to": 7.4,
+          "aten::empty_strided": 6.7,
+          "aten::add": 6.2,
+          "aten::detach": 3.7,
+          "detach": 2.7
         }
       }
     },
@@ -204,18 +204,18 @@
       "ph": "C",
       "name": "spike_rate lif1",
       "cat": "spike",
-      "ts": 2019.9,
+      "ts": 1983.5,
       "pid": 1,
       "args": {
-        "rate": 0.000488
+        "rate": 0.333252
       }
     },
     {
       "ph": "X",
       "name": "lif1@t1",
       "cat": "state",
-      "ts": 3001.1,
-      "dur": 568.5,
+      "ts": 2567.2,
+      "dur": 317.5,
       "pid": 1,
       "tid": 5,
       "args": {
@@ -226,17 +226,227 @@
         "in_loop": true,
         "state_bytes": 16384,
         "ops_self_time_us": {
-          "FastSigmoid": 48.699,
-          "aten::clamp": 39.8,
-          "aten::gt": 36.098,
-          "aten::mul": 35.0,
-          "aten::sub": 32.099,
-          "aten::copy_": 28.999,
-          "aten::_to_copy": 26.5,
-          "aten::empty_strided": 23.9,
-          "aten::add": 7.3,
-          "aten::to": 7.1,
-          "aten::clone": 6.9,
+          "FastSigmoid": 29.4,
+          "aten::gt": 24.599,
+          "aten::sub": 20.6,
+          "aten::copy_": 15.399,
+          "aten::_to_copy": 14.5,
+          "aten::mul": 11.999,
+          "aten::clamp": 7.7,
+          "aten::clone": 6.5,
+          "aten::to": 6.0,
+          "aten::empty_strided": 4.6,
+          "aten::add": 4.2,
+          "aten::detach": 2.4,
+          "detach": 1.3
+        }
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 2567.2,
+      "pid": 1,
+      "args": {
+        "rate": 0.354004
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t2",
+      "cat": "state",
+      "ts": 3057.0,
+      "dur": 329.5,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 2,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "aten::sub": 32.899,
+          "FastSigmoid": 31.199,
+          "aten::copy_": 16.999,
+          "aten::gt": 16.6,
+          "aten::_to_copy": 15.3,
+          "aten::mul": 12.799,
+          "aten::clamp": 9.1,
+          "aten::clone": 7.1,
+          "aten::to": 6.3,
+          "aten::add": 4.8,
+          "aten::empty_strided": 4.5,
+          "aten::detach": 2.6,
+          "detach": 1.399
+        }
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 3057.0,
+      "pid": 1,
+      "args": {
+        "rate": 0.35498
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t3",
+      "cat": "state",
+      "ts": 3623.6,
+      "dur": 384.5,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 3,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 36.098,
+          "aten::mul": 29.599,
+          "aten::sub": 28.099,
+          "aten::copy_": 18.6,
+          "aten::gt": 18.1,
+          "aten::_to_copy": 17.8,
+          "aten::clamp": 10.7,
+          "aten::clone": 8.799,
+          "aten::to": 7.6,
+          "aten::add": 5.6,
+          "aten::empty_strided": 5.5,
+          "aten::detach": 4.1,
+          "detach": 2.3
+        }
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 3623.6,
+      "pid": 1,
+      "args": {
+        "rate": 0.354004
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t4",
+      "cat": "state",
+      "ts": 4109.2,
+      "dur": 349.4,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 4,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 35.899,
+          "aten::copy_": 29.599,
+          "aten::sub": 18.799,
+          "aten::_to_copy": 17.9,
+          "aten::mul": 16.9,
+          "aten::gt": 16.2,
+          "aten::clamp": 10.799,
+          "aten::to": 8.3,
+          "aten::clone": 8.1,
+          "aten::add": 5.4,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.6,
+          "detach": 1.4
+        }
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 4109.2,
+      "pid": 1,
+      "args": {
+        "rate": 0.352783
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t5",
+      "cat": "state",
+      "ts": 4651.5,
+      "dur": 348.5,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 5,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 38.399,
+          "aten::sub": 32.299,
+          "aten::copy_": 18.399,
+          "aten::gt": 17.3,
+          "aten::_to_copy": 14.9,
+          "aten::mul": 12.4,
+          "aten::clamp": 9.5,
+          "aten::clone": 8.7,
+          "aten::to": 7.0,
+          "aten::empty_strided": 4.9,
+          "aten::add": 4.599,
+          "aten::detach": 4.3,
+          "detach": 2.1
+        }
+      }
+    },
+    {
+      "ph": "C",
+      "name": "spike_rate lif1",
+      "cat": "spike",
+      "ts": 4651.5,
+      "pid": 1,
+      "args": {
+        "rate": 0.355469
+      }
+    },
+    {
+      "ph": "X",
+      "name": "lif1@t6",
+      "cat": "state",
+      "ts": 5135.3,
+      "dur": 366.2,
+      "pid": 1,
+      "tid": 5,
+      "args": {
+        "timestep": 6,
+        "op_type": "Leaky",
+        "macs_total": 0,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 16384,
+        "ops_self_time_us": {
+          "FastSigmoid": 36.399,
+          "aten::sub": 30.899,
+          "aten::copy_": 19.0,
+          "aten::gt": 18.7,
+          "aten::_to_copy": 16.2,
+          "aten::mul": 14.9,
+          "aten::clamp": 12.599,
+          "aten::clone": 8.4,
+          "aten::to": 7.6,
+          "aten::empty_strided": 5.299,
+          "aten::add": 4.7,
           "aten::detach": 3.9,
           "detach": 2.4
         }
@@ -246,228 +456,18 @@
       "ph": "C",
       "name": "spike_rate lif1",
       "cat": "spike",
-      "ts": 3001.1,
+      "ts": 5135.3,
       "pid": 1,
       "args": {
-        "rate": 0.060303
-      }
-    },
-    {
-      "ph": "X",
-      "name": "lif1@t2",
-      "cat": "state",
-      "ts": 3676.7,
-      "dur": 683.4,
-      "pid": 1,
-      "tid": 5,
-      "args": {
-        "timestep": 2,
-        "op_type": "Leaky",
-        "macs_total": 0,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 16384,
-        "ops_self_time_us": {
-          "FastSigmoid": 80.499,
-          "aten::sub": 51.999,
-          "aten::gt": 45.8,
-          "aten::mul": 28.198,
-          "aten::copy_": 26.6,
-          "aten::add": 23.799,
-          "aten::_to_copy": 20.798,
-          "aten::clamp": 11.6,
-          "aten::empty_strided": 9.7,
-          "aten::to": 8.9,
-          "aten::clone": 8.599,
-          "aten::detach": 3.8,
-          "detach": 2.6
-        }
-      }
-    },
-    {
-      "ph": "C",
-      "name": "spike_rate lif1",
-      "cat": "spike",
-      "ts": 3676.7,
-      "pid": 1,
-      "args": {
-        "rate": 0.099121
-      }
-    },
-    {
-      "ph": "X",
-      "name": "lif1@t3",
-      "cat": "state",
-      "ts": 4557.7,
-      "dur": 511.7,
-      "pid": 1,
-      "tid": 5,
-      "args": {
-        "timestep": 3,
-        "op_type": "Leaky",
-        "macs_total": 0,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 16384,
-        "ops_self_time_us": {
-          "FastSigmoid": 59.297,
-          "aten::sub": 58.599,
-          "aten::gt": 42.799,
-          "aten::mul": 29.9,
-          "aten::copy_": 22.3,
-          "aten::_to_copy": 16.5,
-          "aten::clamp": 9.9,
-          "aten::clone": 6.8,
-          "aten::to": 6.8,
-          "aten::empty_strided": 6.3,
-          "aten::add": 5.2,
-          "aten::detach": 2.7,
-          "detach": 2.1
-        }
-      }
-    },
-    {
-      "ph": "C",
-      "name": "spike_rate lif1",
-      "cat": "spike",
-      "ts": 4557.7,
-      "pid": 1,
-      "args": {
-        "rate": 0.100342
-      }
-    },
-    {
-      "ph": "X",
-      "name": "lif1@t4",
-      "cat": "state",
-      "ts": 5308.2,
-      "dur": 412.5,
-      "pid": 1,
-      "tid": 5,
-      "args": {
-        "timestep": 4,
-        "op_type": "Leaky",
-        "macs_total": 0,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 16384,
-        "ops_self_time_us": {
-          "FastSigmoid": 33.999,
-          "aten::copy_": 31.5,
-          "aten::sub": 28.499,
-          "aten::gt": 16.499,
-          "aten::_to_copy": 16.2,
-          "aten::mul": 14.5,
-          "aten::clamp": 12.1,
-          "aten::to": 7.3,
-          "aten::clone": 6.6,
-          "aten::empty_strided": 5.1,
-          "aten::add": 4.9,
-          "aten::detach": 3.0,
-          "detach": 2.3
-        }
-      }
-    },
-    {
-      "ph": "C",
-      "name": "spike_rate lif1",
-      "cat": "spike",
-      "ts": 5308.2,
-      "pid": 1,
-      "args": {
-        "rate": 0.100098
-      }
-    },
-    {
-      "ph": "X",
-      "name": "lif1@t5",
-      "cat": "state",
-      "ts": 5835.5,
-      "dur": 811.3,
-      "pid": 1,
-      "tid": 5,
-      "args": {
-        "timestep": 5,
-        "op_type": "Leaky",
-        "macs_total": 0,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 16384,
-        "ops_self_time_us": {
-          "aten::sub": 144.097,
-          "FastSigmoid": 81.697,
-          "aten::gt": 75.499,
-          "aten::copy_": 33.6,
-          "aten::mul": 32.5,
-          "aten::_to_copy": 31.999,
-          "aten::to": 26.599,
-          "aten::clone": 16.3,
-          "aten::empty_strided": 16.299,
-          "aten::clamp": 14.1,
-          "aten::add": 5.6,
-          "aten::detach": 3.2,
-          "detach": 2.3
-        }
-      }
-    },
-    {
-      "ph": "C",
-      "name": "spike_rate lif1",
-      "cat": "spike",
-      "ts": 5835.5,
-      "pid": 1,
-      "args": {
-        "rate": 0.123291
-      }
-    },
-    {
-      "ph": "X",
-      "name": "lif1@t6",
-      "cat": "state",
-      "ts": 6871.3,
-      "dur": 933.2,
-      "pid": 1,
-      "tid": 5,
-      "args": {
-        "timestep": 6,
-        "op_type": "Leaky",
-        "macs_total": 0,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 16384,
-        "ops_self_time_us": {
-          "aten::sub": 109.997,
-          "FastSigmoid": 97.999,
-          "aten::clone": 73.898,
-          "aten::_to_copy": 58.599,
-          "aten::copy_": 42.399,
-          "aten::mul": 35.999,
-          "aten::empty_strided": 32.799,
-          "aten::gt": 31.899,
-          "aten::clamp": 14.399,
-          "aten::to": 12.0,
-          "aten::add": 6.5,
-          "aten::detach": 4.7,
-          "detach": 2.6
-        }
-      }
-    },
-    {
-      "ph": "C",
-      "name": "spike_rate lif1",
-      "cat": "spike",
-      "ts": 6871.3,
-      "pid": 1,
-      "args": {
-        "rate": 0.091064
+        "rate": 0.350586
       }
     },
     {
       "ph": "X",
       "name": "lif1@t7",
       "cat": "state",
-      "ts": 8168.3,
-      "dur": 505.7,
+      "ts": 5589.7,
+      "dur": 246.9,
       "pid": 1,
       "tid": 5,
       "args": {
@@ -478,19 +478,19 @@
         "in_loop": true,
         "state_bytes": 16384,
         "ops_self_time_us": {
-          "aten::mul": 63.299,
-          "FastSigmoid": 38.3,
-          "aten::sub": 29.798,
-          "aten::copy_": 29.199,
-          "aten::gt": 19.7,
-          "aten::clamp": 17.7,
-          "aten::_to_copy": 16.899,
-          "aten::add": 13.5,
-          "aten::empty_strided": 11.8,
-          "aten::clone": 9.6,
-          "aten::to": 7.3,
-          "aten::detach": 2.9,
-          "detach": 2.199
+          "FastSigmoid": 22.499,
+          "aten::mul": 21.199,
+          "aten::sub": 13.4,
+          "aten::_to_copy": 13.0,
+          "aten::copy_": 11.3,
+          "aten::gt": 10.7,
+          "aten::clamp": 7.0,
+          "aten::clone": 6.0,
+          "aten::to": 5.4,
+          "aten::add": 3.6,
+          "aten::empty_strided": 3.1,
+          "aten::detach": 2.4,
+          "detach": 0.8
         }
       }
     },
@@ -498,18 +498,18 @@
       "ph": "C",
       "name": "spike_rate lif1",
       "cat": "spike",
-      "ts": 8168.3,
+      "ts": 5589.7,
       "pid": 1,
       "args": {
-        "rate": 0.116211
+        "rate": 0.354004
       }
     },
     {
       "ph": "X",
       "name": "lif1@t8",
       "cat": "state",
-      "ts": 8766.8,
-      "dur": 322.5,
+      "ts": 5913.0,
+      "dur": 286.5,
       "pid": 1,
       "tid": 5,
       "args": {
@@ -520,19 +520,19 @@
         "in_loop": true,
         "state_bytes": 16384,
         "ops_self_time_us": {
-          "FastSigmoid": 38.999,
-          "aten::mul": 25.6,
-          "aten::_to_copy": 15.0,
-          "aten::copy_": 14.299,
-          "aten::add": 13.999,
-          "aten::sub": 12.3,
-          "aten::gt": 12.1,
-          "aten::clamp": 8.4,
-          "aten::clone": 6.7,
-          "aten::to": 6.3,
-          "aten::empty_strided": 3.8,
-          "aten::detach": 2.7,
-          "detach": 1.0
+          "FastSigmoid": 29.0,
+          "aten::mul": 16.4,
+          "aten::add": 14.6,
+          "aten::_to_copy": 14.5,
+          "aten::sub": 14.299,
+          "aten::copy_": 13.099,
+          "aten::gt": 13.0,
+          "aten::clamp": 9.0,
+          "aten::clone": 6.2,
+          "aten::to": 6.199,
+          "aten::empty_strided": 3.9,
+          "aten::detach": 3.4,
+          "detach": 1.1
         }
       }
     },
@@ -540,18 +540,18 @@
       "ph": "C",
       "name": "spike_rate lif1",
       "cat": "spike",
-      "ts": 8766.8,
+      "ts": 5913.0,
       "pid": 1,
       "args": {
-        "rate": 0.101807
+        "rate": 0.353027
       }
     },
     {
       "ph": "X",
       "name": "lif1@t9",
       "cat": "state",
-      "ts": 9261.4,
-      "dur": 377.5,
+      "ts": 6299.2,
+      "dur": 268.6,
       "pid": 1,
       "tid": 5,
       "args": {
@@ -562,18 +562,18 @@
         "in_loop": true,
         "state_bytes": 16384,
         "ops_self_time_us": {
-          "FastSigmoid": 36.199,
-          "aten::mul": 29.799,
-          "aten::sub": 22.4,
-          "aten::gt": 17.9,
-          "aten::_to_copy": 16.9,
-          "aten::copy_": 16.7,
-          "aten::clamp": 10.599,
-          "aten::clone": 8.7,
-          "aten::to": 7.4,
-          "aten::add": 6.0,
-          "aten::empty_strided": 4.3,
-          "aten::detach": 3.9,
+          "FastSigmoid": 24.499,
+          "aten::mul": 24.4,
+          "aten::sub": 14.6,
+          "aten::copy_": 12.8,
+          "aten::gt": 12.7,
+          "aten::_to_copy": 11.9,
+          "aten::clamp": 10.3,
+          "aten::clone": 5.4,
+          "aten::to": 4.8,
+          "aten::add": 4.4,
+          "aten::empty_strided": 3.5,
+          "aten::detach": 2.5,
           "detach": 1.0
         }
       }
@@ -582,18 +582,18 @@
       "ph": "C",
       "name": "spike_rate lif1",
       "cat": "spike",
-      "ts": 9261.4,
+      "ts": 6299.2,
       "pid": 1,
       "args": {
-        "rate": 0.109619
+        "rate": 0.35376
       }
     },
     {
       "ph": "X",
       "name": "dnn2.0:Linear@t0",
       "cat": "dense",
-      "ts": 9741.8,
-      "dur": 111.9,
+      "ts": 6641.3,
+      "dur": 139.9,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -604,12 +604,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 67.599,
-          "aten::linear": 10.399,
-          "aten::t": 9.9,
-          "aten::transpose": 5.4,
-          "aten::empty": 3.3,
-          "aten::as_strided": 2.7
+          "aten::addmm": 61.898,
+          "aten::linear": 38.399,
+          "aten::t": 10.3,
+          "aten::transpose": 7.0,
+          "aten::empty": 3.7,
+          "aten::as_strided": 2.9
         }
       }
     },
@@ -617,8 +617,8 @@
       "ph": "X",
       "name": "snn2_fc@t0",
       "cat": "dense",
-      "ts": 10036.8,
-      "dur": 95.4,
+      "ts": 6920.9,
+      "dur": 52.7,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -629,12 +629,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 50.699,
-          "aten::linear": 10.299,
-          "aten::t": 8.8,
-          "aten::transpose": 5.4,
-          "aten::empty": 3.7,
-          "aten::as_strided": 2.3
+          "aten::addmm": 22.099,
+          "aten::linear": 8.9,
+          "aten::t": 5.0,
+          "aten::transpose": 4.4,
+          "aten::empty": 1.5,
+          "aten::as_strided": 1.2
         }
       }
     },
@@ -642,8 +642,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t1",
       "cat": "dense",
-      "ts": 10278.9,
-      "dur": 100.0,
+      "ts": 7035.0,
+      "dur": 55.7,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -654,12 +654,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 63.898,
-          "aten::linear": 9.4,
-          "aten::t": 6.5,
-          "aten::transpose": 5.0,
-          "aten::empty": 3.2,
-          "aten::as_strided": 2.3
+          "aten::addmm": 30.2,
+          "aten::linear": 7.8,
+          "aten::t": 4.6,
+          "aten::transpose": 3.999,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.6
         }
       }
     },
@@ -667,8 +667,8 @@
       "ph": "X",
       "name": "snn2_fc@t1",
       "cat": "dense",
-      "ts": 10615.3,
-      "dur": 86.5,
+      "ts": 7154.4,
+      "dur": 37.9,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -679,12 +679,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 40.199,
-          "aten::linear": 13.9,
-          "aten::t": 7.0,
-          "aten::transpose": 5.8,
-          "aten::empty": 2.9,
-          "aten::as_strided": 2.0
+          "aten::addmm": 14.099,
+          "aten::linear": 7.3,
+          "aten::t": 4.1,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.6
         }
       }
     },
@@ -692,8 +692,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t2",
       "cat": "dense",
-      "ts": 10795.1,
-      "dur": 72.0,
+      "ts": 7238.6,
+      "dur": 45.0,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -704,12 +704,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 36.299,
-          "aten::linear": 8.899,
-          "aten::t": 6.6,
-          "aten::transpose": 5.4,
-          "aten::empty": 2.8,
-          "aten::as_strided": 1.8
+          "aten::addmm": 18.399,
+          "aten::linear": 7.6,
+          "aten::t": 4.7,
+          "aten::transpose": 4.7,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.6
         }
       }
     },
@@ -717,8 +717,8 @@
       "ph": "X",
       "name": "snn2_fc@t2",
       "cat": "dense",
-      "ts": 10964.9,
-      "dur": 55.8,
+      "ts": 7342.8,
+      "dur": 37.6,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -729,12 +729,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 25.9,
-          "aten::linear": 7.9,
-          "aten::t": 5.3,
-          "aten::transpose": 4.5,
-          "aten::empty": 2.199,
-          "aten::as_strided": 1.2
+          "aten::addmm": 14.099,
+          "aten::linear": 7.1,
+          "aten::t": 4.3,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.4
         }
       }
     },
@@ -742,8 +742,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t3",
       "cat": "dense",
-      "ts": 11079.7,
-      "dur": 48.8,
+      "ts": 7420.7,
+      "dur": 37.6,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -754,12 +754,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 21.7,
-          "aten::linear": 7.8,
-          "aten::t": 4.699,
-          "aten::transpose": 4.2,
-          "aten::empty": 2.1,
-          "aten::as_strided": 0.8
+          "aten::addmm": 13.8,
+          "aten::linear": 7.9,
+          "aten::t": 3.9,
+          "aten::transpose": 3.6,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.5
         }
       }
     },
@@ -767,8 +767,8 @@
       "ph": "X",
       "name": "snn2_fc@t3",
       "cat": "dense",
-      "ts": 11204.3,
-      "dur": 49.4,
+      "ts": 7512.1,
+      "dur": 40.1,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -779,12 +779,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 21.999,
-          "aten::linear": 7.5,
-          "aten::t": 4.5,
-          "aten::transpose": 4.4,
-          "aten::empty": 1.7,
-          "aten::as_strided": 1.0
+          "aten::addmm": 16.4,
+          "aten::linear": 7.9,
+          "aten::t": 4.2,
+          "aten::transpose": 3.4,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.5
         }
       }
     },
@@ -792,8 +792,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t4",
       "cat": "dense",
-      "ts": 11307.8,
-      "dur": 44.5,
+      "ts": 7593.2,
+      "dur": 49.8,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -804,10 +804,10 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 18.999,
-          "aten::linear": 7.9,
+          "aten::addmm": 23.7,
+          "aten::linear": 7.8,
           "aten::t": 4.3,
-          "aten::transpose": 4.0,
+          "aten::transpose": 3.799,
           "aten::empty": 1.7,
           "aten::as_strided": 0.6
         }
@@ -817,8 +817,8 @@
       "ph": "X",
       "name": "snn2_fc@t4",
       "cat": "dense",
-      "ts": 11436.0,
-      "dur": 53.8,
+      "ts": 7734.6,
+      "dur": 51.9,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -829,11 +829,11 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 21.8,
-          "aten::linear": 8.699,
-          "aten::t": 5.5,
-          "aten::empty": 5.5,
-          "aten::transpose": 4.3,
+          "aten::addmm": 23.1,
+          "aten::linear": 8.4,
+          "aten::t": 5.1,
+          "aten::transpose": 4.399,
+          "aten::empty": 1.9,
           "aten::as_strided": 0.9
         }
       }
@@ -842,8 +842,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t5",
       "cat": "dense",
-      "ts": 11540.1,
-      "dur": 46.7,
+      "ts": 7837.9,
+      "dur": 38.4,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -854,12 +854,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 20.3,
+          "aten::addmm": 14.6,
           "aten::linear": 7.8,
-          "aten::t": 4.8,
-          "aten::transpose": 4.4,
-          "aten::empty": 1.7,
-          "aten::as_strided": 0.6
+          "aten::t": 4.2,
+          "aten::transpose": 3.6,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.5
         }
       }
     },
@@ -867,8 +867,8 @@
       "ph": "X",
       "name": "snn2_fc@t5",
       "cat": "dense",
-      "ts": 11654.7,
-      "dur": 44.8,
+      "ts": 7934.0,
+      "dur": 36.8,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -879,12 +879,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 19.5,
-          "aten::linear": 7.3,
-          "aten::t": 4.4,
-          "aten::transpose": 4.1,
-          "aten::empty": 1.799,
-          "aten::as_strided": 0.6
+          "aten::addmm": 13.9,
+          "aten::linear": 7.0,
+          "aten::t": 4.3,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.4
         }
       }
     },
@@ -892,8 +892,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t6",
       "cat": "dense",
-      "ts": 11747.7,
-      "dur": 49.0,
+      "ts": 8011.0,
+      "dur": 36.4,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -904,12 +904,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 21.899,
-          "aten::linear": 7.8,
-          "aten::t": 4.5,
-          "aten::transpose": 4.2,
-          "aten::empty": 2.0,
-          "aten::as_strided": 0.8
+          "aten::addmm": 13.8,
+          "aten::linear": 7.399,
+          "aten::t": 4.3,
+          "aten::transpose": 3.5,
+          "aten::empty": 1.1,
+          "aten::as_strided": 0.4
         }
       }
     },
@@ -917,8 +917,8 @@
       "ph": "X",
       "name": "snn2_fc@t6",
       "cat": "dense",
-      "ts": 11871.8,
-      "dur": 61.3,
+      "ts": 8100.3,
+      "dur": 36.2,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -929,12 +929,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 30.899,
-          "aten::linear": 8.799,
-          "aten::t": 4.8,
-          "aten::transpose": 4.7,
-          "aten::empty": 2.0,
-          "aten::as_strided": 1.0
+          "aten::addmm": 13.299,
+          "aten::linear": 7.5,
+          "aten::t": 4.0,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.4
         }
       }
     },
@@ -942,8 +942,8 @@
       "ph": "X",
       "name": "dnn2.0:Linear@t7",
       "cat": "dense",
-      "ts": 11992.2,
-      "dur": 51.5,
+      "ts": 8182.2,
+      "dur": 44.2,
       "pid": 1,
       "tid": 3,
       "args": {
@@ -954,110 +954,10 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 22.3,
-          "aten::linear": 8.9,
-          "aten::t": 5.3,
-          "aten::transpose": 4.3,
-          "aten::empty": 1.999,
-          "aten::as_strided": 0.9
-        }
-      }
-    },
-    {
-      "ph": "X",
-      "name": "snn2_fc@t7",
-      "cat": "dense",
-      "ts": 12267.4,
-      "dur": 55.0,
-      "pid": 1,
-      "tid": 4,
-      "args": {
-        "timestep": 7,
-        "op_type": "Linear",
-        "macs_total": 204800,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 0,
-        "ops_self_time_us": {
-          "aten::addmm": 25.8,
-          "aten::linear": 7.999,
-          "aten::t": 5.1,
+          "aten::addmm": 18.999,
+          "aten::linear": 7.2,
+          "aten::t": 4.4,
           "aten::transpose": 4.1,
-          "aten::empty": 2.2,
-          "aten::as_strided": 1.1
-        }
-      }
-    },
-    {
-      "ph": "X",
-      "name": "dnn2.0:Linear@t8",
-      "cat": "dense",
-      "ts": 12381.5,
-      "dur": 65.9,
-      "pid": 1,
-      "tid": 3,
-      "args": {
-        "timestep": 8,
-        "op_type": "Linear",
-        "macs_total": 1310720,
-        "spike_driven": true,
-        "in_loop": true,
-        "state_bytes": 0,
-        "ops_self_time_us": {
-          "aten::addmm": 37.199,
-          "aten::linear": 8.0,
-          "aten::t": 4.9,
-          "aten::transpose": 4.2,
-          "aten::empty": 1.8,
-          "aten::as_strided": 0.8
-        }
-      }
-    },
-    {
-      "ph": "X",
-      "name": "snn2_fc@t8",
-      "cat": "dense",
-      "ts": 12529.7,
-      "dur": 53.7,
-      "pid": 1,
-      "tid": 4,
-      "args": {
-        "timestep": 8,
-        "op_type": "Linear",
-        "macs_total": 204800,
-        "spike_driven": false,
-        "in_loop": true,
-        "state_bytes": 0,
-        "ops_self_time_us": {
-          "aten::addmm": 23.7,
-          "aten::linear": 8.0,
-          "aten::t": 5.4,
-          "aten::transpose": 4.8,
-          "aten::empty": 1.899,
-          "aten::as_strided": 1.0
-        }
-      }
-    },
-    {
-      "ph": "X",
-      "name": "dnn2.0:Linear@t9",
-      "cat": "dense",
-      "ts": 12638.2,
-      "dur": 48.7,
-      "pid": 1,
-      "tid": 3,
-      "args": {
-        "timestep": 9,
-        "op_type": "Linear",
-        "macs_total": 1310720,
-        "spike_driven": true,
-        "in_loop": true,
-        "state_bytes": 0,
-        "ops_self_time_us": {
-          "aten::addmm": 20.899,
-          "aten::linear": 8.5,
-          "aten::t": 5.1,
-          "aten::transpose": 4.3,
           "aten::empty": 1.8,
           "aten::as_strided": 0.7
         }
@@ -1065,10 +965,110 @@
     },
     {
       "ph": "X",
+      "name": "snn2_fc@t7",
+      "cat": "dense",
+      "ts": 8381.4,
+      "dur": 44.7,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 7,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 16.8,
+          "aten::linear": 10.799,
+          "aten::t": 4.5,
+          "aten::transpose": 4.0,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.9
+        }
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t8",
+      "cat": "dense",
+      "ts": 8473.0,
+      "dur": 43.2,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 8,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 24.199,
+          "aten::linear": 6.0,
+          "aten::t": 2.8,
+          "aten::transpose": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.4
+        }
+      }
+    },
+    {
+      "ph": "X",
+      "name": "snn2_fc@t8",
+      "cat": "dense",
+      "ts": 8577.7,
+      "dur": 41.7,
+      "pid": 1,
+      "tid": 4,
+      "args": {
+        "timestep": 8,
+        "op_type": "Linear",
+        "macs_total": 204800,
+        "spike_driven": false,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 16.8,
+          "aten::linear": 7.4,
+          "aten::t": 4.5,
+          "aten::transpose": 4.499,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.7
+        }
+      }
+    },
+    {
+      "ph": "X",
+      "name": "dnn2.0:Linear@t9",
+      "cat": "dense",
+      "ts": 8662.5,
+      "dur": 35.7,
+      "pid": 1,
+      "tid": 3,
+      "args": {
+        "timestep": 9,
+        "op_type": "Linear",
+        "macs_total": 1310720,
+        "spike_driven": true,
+        "in_loop": true,
+        "state_bytes": 0,
+        "ops_self_time_us": {
+          "aten::addmm": 13.399,
+          "aten::linear": 7.1,
+          "aten::t": 3.8,
+          "aten::transpose": 3.3,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.5
+        }
+      }
+    },
+    {
+      "ph": "X",
       "name": "snn2_fc@t9",
       "cat": "dense",
-      "ts": 12757.9,
-      "dur": 46.8,
+      "ts": 8834.8,
+      "dur": 64.5,
       "pid": 1,
       "tid": 4,
       "args": {
@@ -1079,12 +1079,12 @@
         "in_loop": true,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 20.6,
-          "aten::linear": 7.5,
-          "aten::t": 4.6,
-          "aten::transpose": 4.0,
-          "aten::empty": 1.8,
-          "aten::as_strided": 0.8
+          "aten::addmm": 30.299,
+          "aten::linear": 8.7,
+          "aten::t": 6.6,
+          "aten::transpose": 5.7,
+          "aten::empty": 2.6,
+          "aten::as_strided": 1.5
         }
       }
     },
@@ -1092,8 +1092,8 @@
       "ph": "X",
       "name": "lif2@t0",
       "cat": "state",
-      "ts": 13020.3,
-      "dur": 429.2,
+      "ts": 9048.8,
+      "dur": 577.8,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1104,19 +1104,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "aten::mul": 45.997,
-          "FastSigmoid": 42.8,
-          "aten::sub": 25.899,
-          "aten::copy_": 23.2,
-          "aten::gt": 21.999,
-          "aten::_to_copy": 18.0,
-          "aten::clamp": 13.2,
-          "aten::add": 7.9,
-          "aten::to": 7.1,
-          "aten::clone": 6.3,
-          "aten::empty_strided": 5.399,
-          "aten::detach": 3.0,
-          "detach": 2.299
+          "aten::detach": 72.399,
+          "aten::mul": 42.999,
+          "FastSigmoid": 41.799,
+          "aten::clamp": 34.799,
+          "aten::copy_": 29.299,
+          "aten::gt": 23.699,
+          "aten::sub": 22.8,
+          "aten::_to_copy": 16.0,
+          "aten::clone": 11.2,
+          "aten::empty_strided": 10.5,
+          "aten::add": 9.699,
+          "aten::to": 7.0,
+          "detach": 2.6
         }
       }
     },
@@ -1124,7 +1124,7 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 13020.3,
+      "ts": 9048.8,
       "pid": 1,
       "args": {
         "rate": 0.0
@@ -1134,8 +1134,8 @@
       "ph": "X",
       "name": "lif2@t1",
       "cat": "state",
-      "ts": 13571.1,
-      "dur": 528.2,
+      "ts": 9736.1,
+      "dur": 300.4,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1146,19 +1146,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "aten::_to_copy": 73.199,
-          "aten::to": 51.498,
-          "FastSigmoid": 46.398,
-          "aten::copy_": 41.6,
-          "aten::sub": 22.9,
-          "aten::mul": 19.699,
-          "aten::gt": 17.3,
-          "aten::clamp": 13.8,
-          "aten::empty_strided": 11.1,
-          "aten::clone": 9.4,
-          "aten::add": 5.2,
-          "aten::detach": 3.5,
-          "detach": 2.6
+          "FastSigmoid": 29.399,
+          "aten::copy_": 25.399,
+          "aten::sub": 15.0,
+          "aten::_to_copy": 13.8,
+          "aten::mul": 13.5,
+          "aten::gt": 11.4,
+          "aten::clamp": 9.2,
+          "aten::clone": 7.4,
+          "aten::to": 6.6,
+          "aten::empty_strided": 4.299,
+          "aten::add": 3.8,
+          "aten::detach": 3.0,
+          "detach": 1.1
         }
       }
     },
@@ -1166,18 +1166,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 13571.1,
+      "ts": 9736.1,
       "pid": 1,
       "args": {
-        "rate": 0.0
+        "rate": 0.032813
       }
     },
     {
       "ph": "X",
       "name": "lif2@t2",
       "cat": "state",
-      "ts": 14220.4,
-      "dur": 416.1,
+      "ts": 10175.7,
+      "dur": 329.1,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1188,19 +1188,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 37.699,
-          "aten::copy_": 28.899,
-          "aten::gt": 27.5,
-          "aten::sub": 18.299,
-          "aten::_to_copy": 16.499,
-          "aten::mul": 16.4,
-          "aten::clamp": 15.199,
-          "aten::clone": 12.1,
-          "aten::to": 7.1,
-          "aten::empty_strided": 5.4,
-          "aten::add": 5.3,
-          "aten::detach": 3.7,
-          "detach": 2.5
+          "aten::_to_copy": 74.498,
+          "FastSigmoid": 23.6,
+          "aten::sub": 15.5,
+          "aten::copy_": 13.3,
+          "aten::mul": 12.7,
+          "aten::gt": 11.499,
+          "aten::clamp": 9.4,
+          "aten::clone": 5.8,
+          "aten::to": 5.0,
+          "aten::empty_strided": 3.9,
+          "aten::add": 3.6,
+          "aten::detach": 3.499,
+          "detach": 1.4
         }
       }
     },
@@ -1208,18 +1208,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 14220.4,
+      "ts": 10175.7,
       "pid": 1,
       "args": {
-        "rate": 0.0
+        "rate": 0.025
       }
     },
     {
       "ph": "X",
       "name": "lif2@t3",
       "cat": "state",
-      "ts": 14793.0,
-      "dur": 299.9,
+      "ts": 10603.2,
+      "dur": 248.1,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1230,18 +1230,18 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 28.9,
-          "aten::copy_": 24.499,
-          "aten::sub": 14.9,
-          "aten::gt": 13.7,
-          "aten::mul": 12.4,
-          "aten::_to_copy": 11.899,
-          "aten::clamp": 8.4,
-          "aten::to": 6.0,
-          "aten::clone": 5.7,
-          "aten::empty_strided": 3.7,
-          "aten::add": 3.5,
-          "aten::detach": 2.6,
+          "FastSigmoid": 24.999,
+          "aten::copy_": 17.599,
+          "aten::mul": 12.5,
+          "aten::sub": 11.9,
+          "aten::_to_copy": 11.6,
+          "aten::gt": 10.2,
+          "aten::clamp": 6.999,
+          "aten::clone": 5.3,
+          "aten::to": 5.0,
+          "aten::add": 3.4,
+          "aten::empty_strided": 3.1,
+          "aten::detach": 2.3,
           "detach": 1.0
         }
       }
@@ -1250,18 +1250,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 14793.0,
+      "ts": 10603.2,
       "pid": 1,
       "args": {
-        "rate": 0.0
+        "rate": 0.028125
       }
     },
     {
       "ph": "X",
       "name": "lif2@t4",
       "cat": "state",
-      "ts": 15174.8,
-      "dur": 555.9,
+      "ts": 10930.3,
+      "dur": 270.5,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1272,19 +1272,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "aten::sub": 62.699,
-          "FastSigmoid": 47.899,
-          "aten::gt": 37.1,
-          "aten::copy_": 32.599,
-          "aten::clone": 23.099,
-          "aten::clamp": 22.499,
-          "aten::mul": 21.4,
-          "aten::_to_copy": 16.5,
-          "aten::empty_strided": 13.6,
-          "aten::add": 7.2,
-          "aten::to": 7.1,
-          "aten::detach": 4.6,
-          "detach": 2.9
+          "FastSigmoid": 28.8,
+          "aten::sub": 20.1,
+          "aten::_to_copy": 14.4,
+          "aten::copy_": 13.999,
+          "aten::mul": 13.4,
+          "aten::gt": 12.299,
+          "aten::clamp": 7.499,
+          "aten::clone": 7.4,
+          "aten::to": 6.6,
+          "aten::empty_strided": 4.1,
+          "aten::add": 3.6,
+          "aten::detach": 2.6,
+          "detach": 1.1
         }
       }
     },
@@ -1292,18 +1292,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 15174.8,
+      "ts": 10930.3,
       "pid": 1,
       "args": {
-        "rate": 0.0
+        "rate": 0.028125
       }
     },
     {
       "ph": "X",
       "name": "lif2@t5",
       "cat": "state",
-      "ts": 15885.9,
-      "dur": 747.8,
+      "ts": 11283.4,
+      "dur": 290.4,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1314,19 +1314,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "aten::copy_": 61.499,
-          "FastSigmoid": 57.399,
-          "aten::sub": 46.198,
-          "aten::mul": 39.298,
-          "aten::gt": 35.7,
-          "aten::_to_copy": 25.8,
-          "aten::clamp": 16.7,
-          "aten::empty_strided": 13.5,
-          "aten::clone": 11.199,
-          "aten::to": 9.199,
-          "aten::add": 7.1,
-          "aten::detach": 4.2,
-          "detach": 2.499
+          "FastSigmoid": 29.8,
+          "aten::mul": 26.799,
+          "aten::sub": 17.299,
+          "aten::_to_copy": 14.699,
+          "aten::copy_": 14.0,
+          "aten::gt": 13.799,
+          "aten::clamp": 8.4,
+          "aten::to": 6.9,
+          "aten::clone": 4.7,
+          "aten::empty_strided": 4.3,
+          "aten::add": 4.3,
+          "aten::detach": 2.3,
+          "detach": 0.7
         }
       }
     },
@@ -1334,18 +1334,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 15885.9,
+      "ts": 11283.4,
       "pid": 1,
       "args": {
-        "rate": 0.0
+        "rate": 0.042188
       }
     },
     {
       "ph": "X",
       "name": "lif2@t6",
       "cat": "state",
-      "ts": 16777.1,
-      "dur": 372.9,
+      "ts": 11698.6,
+      "dur": 328.7,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1356,19 +1356,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 33.999,
-          "aten::mul": 23.7,
-          "aten::sub": 21.6,
-          "aten::copy_": 18.6,
-          "aten::gt": 16.599,
-          "aten::_to_copy": 15.0,
-          "aten::clamp": 11.199,
-          "aten::clone": 8.3,
-          "aten::to": 5.9,
-          "aten::empty_strided": 5.199,
-          "aten::add": 4.3,
-          "aten::detach": 4.1,
-          "detach": 2.0
+          "FastSigmoid": 30.1,
+          "aten::mul": 25.899,
+          "aten::sub": 22.9,
+          "aten::gt": 16.499,
+          "aten::copy_": 15.8,
+          "aten::_to_copy": 13.099,
+          "aten::clamp": 10.1,
+          "aten::clone": 5.799,
+          "aten::add": 5.7,
+          "aten::to": 5.3,
+          "aten::empty_strided": 4.4,
+          "aten::detach": 2.5,
+          "detach": 1.7
         }
       }
     },
@@ -1376,18 +1376,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 16777.1,
+      "ts": 11698.6,
       "pid": 1,
       "args": {
-        "rate": 0.00625
+        "rate": 0.045312
       }
     },
     {
       "ph": "X",
       "name": "lif2@t7",
       "cat": "state",
-      "ts": 17235.4,
-      "dur": 264.4,
+      "ts": 12143.2,
+      "dur": 353.8,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1398,19 +1398,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 26.0,
-          "aten::copy_": 21.0,
-          "aten::sub": 12.8,
-          "aten::gt": 12.3,
-          "aten::mul": 12.299,
-          "aten::_to_copy": 11.8,
-          "aten::clamp": 8.1,
-          "aten::to": 6.7,
-          "aten::clone": 6.399,
-          "aten::empty_strided": 4.6,
-          "aten::add": 3.7,
-          "aten::detach": 2.7,
-          "detach": 1.2
+          "FastSigmoid": 33.9,
+          "aten::copy_": 28.699,
+          "aten::sub": 21.9,
+          "aten::gt": 18.2,
+          "aten::_to_copy": 16.198,
+          "aten::mul": 13.3,
+          "aten::clamp": 12.399,
+          "aten::clone": 9.0,
+          "aten::to": 6.9,
+          "aten::empty_strided": 5.6,
+          "aten::add": 4.6,
+          "aten::detach": 3.9,
+          "detach": 2.2
         }
       }
     },
@@ -1418,18 +1418,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 17235.4,
+      "ts": 12143.2,
       "pid": 1,
       "args": {
-        "rate": 0.032813
+        "rate": 0.054688
       }
     },
     {
       "ph": "X",
       "name": "lif2@t8",
       "cat": "state",
-      "ts": 17576.5,
-      "dur": 238.1,
+      "ts": 12581.5,
+      "dur": 613.3,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1440,19 +1440,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 22.9,
-          "aten::_to_copy": 13.2,
-          "aten::copy_": 11.899,
-          "aten::gt": 11.4,
-          "aten::sub": 10.9,
-          "aten::mul": 10.4,
-          "aten::clamp": 7.0,
-          "aten::clone": 6.1,
-          "aten::to": 5.8,
-          "aten::empty_strided": 3.999,
-          "aten::add": 3.2,
-          "aten::detach": 2.5,
-          "detach": 1.0
+          "aten::sub": 55.798,
+          "FastSigmoid": 50.9,
+          "aten::mul": 38.999,
+          "aten::gt": 32.898,
+          "aten::copy_": 25.4,
+          "aten::_to_copy": 20.6,
+          "aten::clamp": 17.1,
+          "aten::add": 14.0,
+          "aten::to": 8.4,
+          "aten::clone": 8.4,
+          "aten::empty_strided": 7.7,
+          "aten::detach": 4.2,
+          "detach": 2.6
         }
       }
     },
@@ -1460,18 +1460,18 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 17576.5,
+      "ts": 12581.5,
       "pid": 1,
       "args": {
-        "rate": 0.029687
+        "rate": 0.053125
       }
     },
     {
       "ph": "X",
       "name": "lif2@t9",
       "cat": "state",
-      "ts": 17915.4,
-      "dur": 239.7,
+      "ts": 13426.5,
+      "dur": 664.3,
       "pid": 1,
       "tid": 6,
       "args": {
@@ -1482,19 +1482,19 @@
         "in_loop": true,
         "state_bytes": 2560,
         "ops_self_time_us": {
-          "FastSigmoid": 23.499,
-          "aten::copy_": 22.499,
-          "aten::_to_copy": 11.4,
-          "aten::sub": 11.2,
-          "aten::mul": 10.8,
-          "aten::gt": 10.4,
-          "aten::clamp": 7.6,
-          "aten::to": 5.8,
-          "aten::clone": 5.1,
-          "aten::add": 3.7,
-          "aten::empty_strided": 3.4,
-          "aten::detach": 3.3,
-          "detach": 1.2
+          "FastSigmoid": 65.799,
+          "aten::sub": 48.999,
+          "aten::gt": 48.199,
+          "aten::copy_": 46.299,
+          "aten::mul": 45.098,
+          "aten::_to_copy": 20.499,
+          "aten::clamp": 17.9,
+          "aten::clone": 17.299,
+          "aten::empty_strided": 12.7,
+          "aten::to": 8.6,
+          "aten::add": 7.8,
+          "aten::detach": 4.4,
+          "detach": 2.5
         }
       }
     },
@@ -1502,10 +1502,10 @@
       "ph": "C",
       "name": "spike_rate lif2",
       "cat": "spike",
-      "ts": 17915.4,
+      "ts": 13426.5,
       "pid": 1,
       "args": {
-        "rate": 0.039062
+        "rate": 0.042188
       }
     }
   ],
@@ -1515,7 +1515,7 @@
     "model": "repeated_dnn_snn"
   },
   "xnn": {
-    "run_id": "repeated_dnn_snn-cuda-T10-1792924737",
+    "run_id": "repeated_dnn_snn-cuda-T10-1793073263",
     "model_id": "repeated_dnn_snn",
     "framework": "pytorch",
     "timesteps": 10,
@@ -1532,281 +1532,281 @@
       "cuda": "12.4",
       "driver": null,
       "region_timing": "cpu-launch-window",
-      "batch_accuracy": 0.125
+      "batch_accuracy": 0.5625
     },
     "regions": [
       {
         "region_id": 0,
         "layer_id": "dnn1.0:Conv2d",
         "timestep": 0,
-        "ts_us": 955.0999384373426,
-        "dur_us": 185.80001778900623,
+        "ts_us": 729.0999637916684,
+        "dur_us": 363.10008727014065,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::cudnn_convolution": 85.998,
-          "aten::_convolution": 24.8,
-          "aten::add_": 10.399,
-          "aten::convolution": 9.0,
-          "aten::conv2d": 8.3,
-          "aten::reshape": 3.7,
-          "aten::view": 3.1
+          "aten::_convolution": 197.996,
+          "aten::cudnn_convolution": 83.099,
+          "aten::add_": 10.1,
+          "aten::conv2d": 9.6,
+          "aten::convolution": 8.899,
+          "aten::reshape": 4.299,
+          "aten::view": 2.8
         }
       },
       {
         "region_id": 1,
         "layer_id": "snn1_fc",
         "timestep": 0,
-        "ts_us": 1645.9999606013298,
-        "dur_us": 113.29993139952421,
+        "ts_us": 1644.899952225387,
+        "dur_us": 160.10005492717028,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 66.299,
-          "aten::linear": 11.499,
-          "aten::t": 8.5,
-          "aten::transpose": 5.6,
-          "aten::empty": 4.2,
-          "aten::as_strided": 2.1
+          "aten::addmm": 54.499,
+          "aten::linear": 10.3,
+          "aten::t": 7.2,
+          "aten::transpose": 5.599,
+          "aten::empty": 3.9,
+          "aten::as_strided": 2.6
         }
       },
       {
         "region_id": 2,
         "layer_id": "lif1",
         "timestep": 0,
-        "ts_us": 2019.8998972773552,
-        "dur_us": 740.4000498354435,
+        "ts_us": 1983.499969355762,
+        "dur_us": 446.3000223040581,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::copy_": 116.898,
-          "FastSigmoid": 54.698,
-          "aten::sub": 46.5,
-          "aten::mul": 40.699,
-          "aten::gt": 40.498,
-          "aten::clamp": 28.3,
-          "aten::_to_copy": 22.4,
-          "aten::clone": 16.9,
-          "aten::to": 10.0,
-          "aten::empty_strided": 8.9,
-          "aten::add": 7.6,
-          "aten::detach": 4.5,
-          "detach": 3.0
+          "FastSigmoid": 39.799,
+          "aten::sub": 33.299,
+          "aten::copy_": 31.099,
+          "aten::gt": 23.0,
+          "aten::mul": 18.7,
+          "aten::_to_copy": 17.099,
+          "aten::clamp": 12.999,
+          "aten::clone": 7.9,
+          "aten::to": 7.4,
+          "aten::empty_strided": 6.7,
+          "aten::add": 6.2,
+          "aten::detach": 3.7,
+          "detach": 2.7
         }
       },
       {
         "region_id": 3,
         "layer_id": "lif1",
         "timestep": 1,
-        "ts_us": 3001.099918037653,
-        "dur_us": 568.5000214725733,
+        "ts_us": 2567.1999901533127,
+        "dur_us": 317.4999728798866,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 48.699,
-          "aten::clamp": 39.8,
-          "aten::gt": 36.098,
-          "aten::mul": 35.0,
-          "aten::sub": 32.099,
-          "aten::copy_": 28.999,
-          "aten::_to_copy": 26.5,
-          "aten::empty_strided": 23.9,
-          "aten::add": 7.3,
-          "aten::to": 7.1,
-          "aten::clone": 6.9,
-          "aten::detach": 3.9,
-          "detach": 2.4
+          "FastSigmoid": 29.4,
+          "aten::gt": 24.599,
+          "aten::sub": 20.6,
+          "aten::copy_": 15.399,
+          "aten::_to_copy": 14.5,
+          "aten::mul": 11.999,
+          "aten::clamp": 7.7,
+          "aten::clone": 6.5,
+          "aten::to": 6.0,
+          "aten::empty_strided": 4.6,
+          "aten::add": 4.2,
+          "aten::detach": 2.4,
+          "detach": 1.3
         }
       },
       {
         "region_id": 4,
         "layer_id": "lif1",
         "timestep": 2,
-        "ts_us": 3676.6999401152134,
-        "dur_us": 683.3999650552869,
+        "ts_us": 3056.999994441867,
+        "dur_us": 329.50006425380707,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 80.499,
-          "aten::sub": 51.999,
-          "aten::gt": 45.8,
-          "aten::mul": 28.198,
-          "aten::copy_": 26.6,
-          "aten::add": 23.799,
-          "aten::_to_copy": 20.798,
-          "aten::clamp": 11.6,
-          "aten::empty_strided": 9.7,
-          "aten::to": 8.9,
-          "aten::clone": 8.599,
-          "aten::detach": 3.8,
-          "detach": 2.6
+          "aten::sub": 32.899,
+          "FastSigmoid": 31.199,
+          "aten::copy_": 16.999,
+          "aten::gt": 16.6,
+          "aten::_to_copy": 15.3,
+          "aten::mul": 12.799,
+          "aten::clamp": 9.1,
+          "aten::clone": 7.1,
+          "aten::to": 6.3,
+          "aten::add": 4.8,
+          "aten::empty_strided": 4.5,
+          "aten::detach": 2.6,
+          "detach": 1.399
         }
       },
       {
         "region_id": 5,
         "layer_id": "lif1",
         "timestep": 3,
-        "ts_us": 4557.699896395206,
-        "dur_us": 511.70005463063717,
+        "ts_us": 3623.6000014469028,
+        "dur_us": 384.5000173896551,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 59.297,
-          "aten::sub": 58.599,
-          "aten::gt": 42.799,
-          "aten::mul": 29.9,
-          "aten::copy_": 22.3,
-          "aten::_to_copy": 16.5,
-          "aten::clamp": 9.9,
-          "aten::clone": 6.8,
-          "aten::to": 6.8,
-          "aten::empty_strided": 6.3,
-          "aten::add": 5.2,
-          "aten::detach": 2.7,
-          "detach": 2.1
+          "FastSigmoid": 36.098,
+          "aten::mul": 29.599,
+          "aten::sub": 28.099,
+          "aten::copy_": 18.6,
+          "aten::gt": 18.1,
+          "aten::_to_copy": 17.8,
+          "aten::clamp": 10.7,
+          "aten::clone": 8.799,
+          "aten::to": 7.6,
+          "aten::add": 5.6,
+          "aten::empty_strided": 5.5,
+          "aten::detach": 4.1,
+          "detach": 2.3
         }
       },
       {
         "region_id": 6,
         "layer_id": "lif1",
         "timestep": 4,
-        "ts_us": 5308.199906721711,
-        "dur_us": 412.4999977648258,
+        "ts_us": 4109.199973754585,
+        "dur_us": 349.3999829515815,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 33.999,
-          "aten::copy_": 31.5,
-          "aten::sub": 28.499,
-          "aten::gt": 16.499,
-          "aten::_to_copy": 16.2,
-          "aten::mul": 14.5,
-          "aten::clamp": 12.1,
-          "aten::to": 7.3,
-          "aten::clone": 6.6,
-          "aten::empty_strided": 5.1,
-          "aten::add": 4.9,
-          "aten::detach": 3.0,
-          "detach": 2.3
+          "FastSigmoid": 35.899,
+          "aten::copy_": 29.599,
+          "aten::sub": 18.799,
+          "aten::_to_copy": 17.9,
+          "aten::mul": 16.9,
+          "aten::gt": 16.2,
+          "aten::clamp": 10.799,
+          "aten::to": 8.3,
+          "aten::clone": 8.1,
+          "aten::add": 5.4,
+          "aten::empty_strided": 4.7,
+          "aten::detach": 3.6,
+          "detach": 1.4
         }
       },
       {
         "region_id": 7,
         "layer_id": "lif1",
         "timestep": 5,
-        "ts_us": 5835.499963723123,
-        "dur_us": 811.3000076264143,
+        "ts_us": 4651.500028558075,
+        "dur_us": 348.49997609853745,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::sub": 144.097,
-          "FastSigmoid": 81.697,
-          "aten::gt": 75.499,
-          "aten::copy_": 33.6,
-          "aten::mul": 32.5,
-          "aten::_to_copy": 31.999,
-          "aten::to": 26.599,
-          "aten::clone": 16.3,
-          "aten::empty_strided": 16.299,
-          "aten::clamp": 14.1,
-          "aten::add": 5.6,
-          "aten::detach": 3.2,
-          "detach": 2.3
+          "FastSigmoid": 38.399,
+          "aten::sub": 32.299,
+          "aten::copy_": 18.399,
+          "aten::gt": 17.3,
+          "aten::_to_copy": 14.9,
+          "aten::mul": 12.4,
+          "aten::clamp": 9.5,
+          "aten::clone": 8.7,
+          "aten::to": 7.0,
+          "aten::empty_strided": 4.9,
+          "aten::add": 4.599,
+          "aten::detach": 4.3,
+          "detach": 2.1
         }
       },
       {
         "region_id": 8,
         "layer_id": "lif1",
         "timestep": 6,
-        "ts_us": 6871.299934573472,
-        "dur_us": 933.2000045105815,
+        "ts_us": 5135.299987159669,
+        "dur_us": 366.19999445974827,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::sub": 109.997,
-          "FastSigmoid": 97.999,
-          "aten::clone": 73.898,
-          "aten::_to_copy": 58.599,
-          "aten::copy_": 42.399,
-          "aten::mul": 35.999,
-          "aten::empty_strided": 32.799,
-          "aten::gt": 31.899,
-          "aten::clamp": 14.399,
-          "aten::to": 12.0,
-          "aten::add": 6.5,
-          "aten::detach": 4.7,
-          "detach": 2.6
+          "FastSigmoid": 36.399,
+          "aten::sub": 30.899,
+          "aten::copy_": 19.0,
+          "aten::gt": 18.7,
+          "aten::_to_copy": 16.2,
+          "aten::mul": 14.9,
+          "aten::clamp": 12.599,
+          "aten::clone": 8.4,
+          "aten::to": 7.6,
+          "aten::empty_strided": 5.299,
+          "aten::add": 4.7,
+          "aten::detach": 3.9,
+          "detach": 2.4
         }
       },
       {
         "region_id": 9,
         "layer_id": "lif1",
         "timestep": 7,
-        "ts_us": 8168.299915269017,
-        "dur_us": 505.70000894367695,
+        "ts_us": 5589.699954725802,
+        "dur_us": 246.90001737326384,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::mul": 63.299,
-          "FastSigmoid": 38.3,
-          "aten::sub": 29.798,
-          "aten::copy_": 29.199,
-          "aten::gt": 19.7,
-          "aten::clamp": 17.7,
-          "aten::_to_copy": 16.899,
-          "aten::add": 13.5,
-          "aten::empty_strided": 11.8,
-          "aten::clone": 9.6,
-          "aten::to": 7.3,
-          "aten::detach": 2.9,
-          "detach": 2.199
+          "FastSigmoid": 22.499,
+          "aten::mul": 21.199,
+          "aten::sub": 13.4,
+          "aten::_to_copy": 13.0,
+          "aten::copy_": 11.3,
+          "aten::gt": 10.7,
+          "aten::clamp": 7.0,
+          "aten::clone": 6.0,
+          "aten::to": 5.4,
+          "aten::add": 3.6,
+          "aten::empty_strided": 3.1,
+          "aten::detach": 2.4,
+          "detach": 0.8
         }
       },
       {
         "region_id": 10,
         "layer_id": "lif1",
         "timestep": 8,
-        "ts_us": 8766.799932345748,
-        "dur_us": 322.5000109523535,
+        "ts_us": 5912.99997176975,
+        "dur_us": 286.50008607655764,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 38.999,
-          "aten::mul": 25.6,
-          "aten::_to_copy": 15.0,
-          "aten::copy_": 14.299,
-          "aten::add": 13.999,
-          "aten::sub": 12.3,
-          "aten::gt": 12.1,
-          "aten::clamp": 8.4,
-          "aten::clone": 6.7,
-          "aten::to": 6.3,
-          "aten::empty_strided": 3.8,
-          "aten::detach": 2.7,
-          "detach": 1.0
+          "FastSigmoid": 29.0,
+          "aten::mul": 16.4,
+          "aten::add": 14.6,
+          "aten::_to_copy": 14.5,
+          "aten::sub": 14.299,
+          "aten::copy_": 13.099,
+          "aten::gt": 13.0,
+          "aten::clamp": 9.0,
+          "aten::clone": 6.2,
+          "aten::to": 6.199,
+          "aten::empty_strided": 3.9,
+          "aten::detach": 3.4,
+          "detach": 1.1
         }
       },
       {
         "region_id": 11,
         "layer_id": "lif1",
         "timestep": 9,
-        "ts_us": 9261.39997318387,
-        "dur_us": 377.4999640882015,
+        "ts_us": 6299.200002104044,
+        "dur_us": 268.5999497771263,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 36.199,
-          "aten::mul": 29.799,
-          "aten::sub": 22.4,
-          "aten::gt": 17.9,
-          "aten::_to_copy": 16.9,
-          "aten::copy_": 16.7,
-          "aten::clamp": 10.599,
-          "aten::clone": 8.7,
-          "aten::to": 7.4,
-          "aten::add": 6.0,
-          "aten::empty_strided": 4.3,
-          "aten::detach": 3.9,
+          "FastSigmoid": 24.499,
+          "aten::mul": 24.4,
+          "aten::sub": 14.6,
+          "aten::copy_": 12.8,
+          "aten::gt": 12.7,
+          "aten::_to_copy": 11.9,
+          "aten::clamp": 10.3,
+          "aten::clone": 5.4,
+          "aten::to": 4.8,
+          "aten::add": 4.4,
+          "aten::empty_strided": 3.5,
+          "aten::detach": 2.5,
           "detach": 1.0
         }
       },
@@ -1814,151 +1814,151 @@
         "region_id": 12,
         "layer_id": "dnn2.0:Linear",
         "timestep": 0,
-        "ts_us": 9741.799905896187,
-        "dur_us": 111.90003715455532,
+        "ts_us": 6641.300045885146,
+        "dur_us": 139.90001752972603,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 67.599,
-          "aten::linear": 10.399,
-          "aten::t": 9.9,
-          "aten::transpose": 5.4,
-          "aten::empty": 3.3,
-          "aten::as_strided": 2.7
+          "aten::addmm": 61.898,
+          "aten::linear": 38.399,
+          "aten::t": 10.3,
+          "aten::transpose": 7.0,
+          "aten::empty": 3.7,
+          "aten::as_strided": 2.9
         }
       },
       {
         "region_id": 13,
         "layer_id": "snn2_fc",
         "timestep": 0,
-        "ts_us": 10036.799940280616,
-        "dur_us": 95.40002793073654,
+        "ts_us": 6920.899963006377,
+        "dur_us": 52.70005203783512,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 50.699,
-          "aten::linear": 10.299,
-          "aten::t": 8.8,
-          "aten::transpose": 5.4,
-          "aten::empty": 3.7,
-          "aten::as_strided": 2.3
+          "aten::addmm": 22.099,
+          "aten::linear": 8.9,
+          "aten::t": 5.0,
+          "aten::transpose": 4.4,
+          "aten::empty": 1.5,
+          "aten::as_strided": 1.2
         }
       },
       {
         "region_id": 14,
         "layer_id": "dnn2.0:Linear",
         "timestep": 1,
-        "ts_us": 10278.899921104312,
-        "dur_us": 100.00006295740604,
+        "ts_us": 7035.000016912818,
+        "dur_us": 55.699958465993404,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 63.898,
-          "aten::linear": 9.4,
-          "aten::t": 6.5,
-          "aten::transpose": 5.0,
-          "aten::empty": 3.2,
-          "aten::as_strided": 2.3
+          "aten::addmm": 30.2,
+          "aten::linear": 7.8,
+          "aten::t": 4.6,
+          "aten::transpose": 3.999,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.6
         }
       },
       {
         "region_id": 15,
         "layer_id": "snn2_fc",
         "timestep": 1,
-        "ts_us": 10615.299921482801,
-        "dur_us": 86.50007657706738,
+        "ts_us": 7154.399994760752,
+        "dur_us": 37.90005575865507,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 40.199,
-          "aten::linear": 13.9,
-          "aten::t": 7.0,
-          "aten::transpose": 5.8,
-          "aten::empty": 2.9,
-          "aten::as_strided": 2.0
+          "aten::addmm": 14.099,
+          "aten::linear": 7.3,
+          "aten::t": 4.1,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.6
         }
       },
       {
         "region_id": 16,
         "layer_id": "dnn2.0:Linear",
         "timestep": 2,
-        "ts_us": 10795.099893584847,
-        "dur_us": 72.00008258223534,
+        "ts_us": 7238.600053824484,
+        "dur_us": 44.99999340623617,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 36.299,
-          "aten::linear": 8.899,
-          "aten::t": 6.6,
-          "aten::transpose": 5.4,
-          "aten::empty": 2.8,
-          "aten::as_strided": 1.8
+          "aten::addmm": 18.399,
+          "aten::linear": 7.6,
+          "aten::t": 4.7,
+          "aten::transpose": 4.7,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.6
         }
       },
       {
         "region_id": 17,
         "layer_id": "snn2_fc",
         "timestep": 2,
-        "ts_us": 10964.899905957282,
-        "dur_us": 55.80007564276457,
+        "ts_us": 7342.800032347441,
+        "dur_us": 37.59993705898523,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 25.9,
-          "aten::linear": 7.9,
-          "aten::t": 5.3,
-          "aten::transpose": 4.5,
-          "aten::empty": 2.199,
-          "aten::as_strided": 1.2
+          "aten::addmm": 14.099,
+          "aten::linear": 7.1,
+          "aten::t": 4.3,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.4
         }
       },
       {
         "region_id": 18,
         "layer_id": "dnn2.0:Linear",
         "timestep": 3,
-        "ts_us": 11079.699965193868,
-        "dur_us": 48.80002234131098,
+        "ts_us": 7420.700043439865,
+        "dur_us": 37.59993705898523,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 21.7,
-          "aten::linear": 7.8,
-          "aten::t": 4.699,
-          "aten::transpose": 4.2,
-          "aten::empty": 2.1,
-          "aten::as_strided": 0.8
+          "aten::addmm": 13.8,
+          "aten::linear": 7.9,
+          "aten::t": 3.9,
+          "aten::transpose": 3.6,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.5
         }
       },
       {
         "region_id": 19,
         "layer_id": "snn2_fc",
         "timestep": 3,
-        "ts_us": 11204.299982637167,
-        "dur_us": 49.39991049468517,
+        "ts_us": 7512.100040912628,
+        "dur_us": 40.09995609521866,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 21.999,
-          "aten::linear": 7.5,
-          "aten::t": 4.5,
-          "aten::transpose": 4.4,
-          "aten::empty": 1.7,
-          "aten::as_strided": 1.0
+          "aten::addmm": 16.4,
+          "aten::linear": 7.9,
+          "aten::t": 4.2,
+          "aten::transpose": 3.4,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.5
         }
       },
       {
         "region_id": 20,
         "layer_id": "dnn2.0:Linear",
         "timestep": 4,
-        "ts_us": 11307.799955829978,
-        "dur_us": 44.49998959898949,
+        "ts_us": 7593.1999599561095,
+        "dur_us": 49.80002995580435,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 18.999,
-          "aten::linear": 7.9,
+          "aten::addmm": 23.7,
+          "aten::linear": 7.8,
           "aten::t": 4.3,
-          "aten::transpose": 4.0,
+          "aten::transpose": 3.799,
           "aten::empty": 1.7,
           "aten::as_strided": 0.6
         }
@@ -1967,16 +1967,16 @@
         "region_id": 21,
         "layer_id": "snn2_fc",
         "timestep": 4,
-        "ts_us": 11435.999884270132,
-        "dur_us": 53.80006041377783,
+        "ts_us": 7734.599988907576,
+        "dur_us": 51.900045946240425,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 21.8,
-          "aten::linear": 8.699,
-          "aten::t": 5.5,
-          "aten::empty": 5.5,
-          "aten::transpose": 4.3,
+          "aten::addmm": 23.1,
+          "aten::linear": 8.4,
+          "aten::t": 5.1,
+          "aten::transpose": 4.399,
+          "aten::empty": 1.9,
           "aten::as_strided": 0.9
         }
       },
@@ -1984,265 +1984,265 @@
         "region_id": 22,
         "layer_id": "dnn2.0:Linear",
         "timestep": 5,
-        "ts_us": 11540.09997844696,
-        "dur_us": 46.7000063508749,
+        "ts_us": 7837.899960577488,
+        "dur_us": 38.400059565901756,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 20.3,
+          "aten::addmm": 14.6,
           "aten::linear": 7.8,
-          "aten::t": 4.8,
-          "aten::transpose": 4.4,
-          "aten::empty": 1.7,
-          "aten::as_strided": 0.6
+          "aten::t": 4.2,
+          "aten::transpose": 3.6,
+          "aten::empty": 1.4,
+          "aten::as_strided": 0.5
         }
       },
       {
         "region_id": 23,
         "layer_id": "snn2_fc",
         "timestep": 5,
-        "ts_us": 11654.699919745326,
-        "dur_us": 44.7999918833375,
+        "ts_us": 7933.99999383837,
+        "dur_us": 36.800047382712364,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 19.5,
-          "aten::linear": 7.3,
-          "aten::t": 4.4,
-          "aten::transpose": 4.1,
-          "aten::empty": 1.799,
-          "aten::as_strided": 0.6
+          "aten::addmm": 13.9,
+          "aten::linear": 7.0,
+          "aten::t": 4.3,
+          "aten::transpose": 3.8,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.4
         }
       },
       {
         "region_id": 24,
         "layer_id": "dnn2.0:Linear",
         "timestep": 6,
-        "ts_us": 11747.699929401278,
-        "dur_us": 49.00002386420965,
+        "ts_us": 8010.99999807775,
+        "dur_us": 36.400044336915016,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 21.899,
-          "aten::linear": 7.8,
-          "aten::t": 4.5,
-          "aten::transpose": 4.2,
-          "aten::empty": 2.0,
-          "aten::as_strided": 0.8
+          "aten::addmm": 13.8,
+          "aten::linear": 7.399,
+          "aten::t": 4.3,
+          "aten::transpose": 3.5,
+          "aten::empty": 1.1,
+          "aten::as_strided": 0.4
         }
       },
       {
         "region_id": 25,
         "layer_id": "snn2_fc",
         "timestep": 6,
-        "ts_us": 11871.799943037331,
-        "dur_us": 61.30000110715628,
+        "ts_us": 8100.299979560077,
+        "dur_us": 36.20004281401634,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 30.899,
-          "aten::linear": 8.799,
-          "aten::t": 4.8,
-          "aten::transpose": 4.7,
-          "aten::empty": 2.0,
-          "aten::as_strided": 1.0
+          "aten::addmm": 13.299,
+          "aten::linear": 7.5,
+          "aten::t": 4.0,
+          "aten::transpose": 3.7,
+          "aten::empty": 1.2,
+          "aten::as_strided": 0.4
         }
       },
       {
         "region_id": 26,
         "layer_id": "dnn2.0:Linear",
         "timestep": 7,
-        "ts_us": 11992.199928499758,
-        "dur_us": 51.50004290044308,
+        "ts_us": 8182.200021110475,
+        "dur_us": 44.199987314641476,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 22.3,
-          "aten::linear": 8.9,
-          "aten::t": 5.3,
-          "aten::transpose": 4.3,
-          "aten::empty": 1.999,
-          "aten::as_strided": 0.9
+          "aten::addmm": 18.999,
+          "aten::linear": 7.2,
+          "aten::t": 4.4,
+          "aten::transpose": 4.1,
+          "aten::empty": 1.8,
+          "aten::as_strided": 0.7
         }
       },
       {
         "region_id": 27,
         "layer_id": "snn2_fc",
         "timestep": 7,
-        "ts_us": 12267.39992853254,
-        "dur_us": 55.00006955116987,
+        "ts_us": 8381.40002451837,
+        "dur_us": 44.69999112188816,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 25.8,
-          "aten::linear": 7.999,
-          "aten::t": 5.1,
-          "aten::transpose": 4.1,
-          "aten::empty": 2.2,
-          "aten::as_strided": 1.1
+          "aten::addmm": 16.8,
+          "aten::linear": 10.799,
+          "aten::t": 4.5,
+          "aten::transpose": 4.0,
+          "aten::empty": 1.3,
+          "aten::as_strided": 0.9
         }
       },
       {
         "region_id": 28,
         "layer_id": "dnn2.0:Linear",
         "timestep": 8,
-        "ts_us": 12381.499982438982,
-        "dur_us": 65.89991971850395,
+        "ts_us": 8473.000023514032,
+        "dur_us": 43.199979700148106,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 37.199,
-          "aten::linear": 8.0,
-          "aten::t": 4.9,
-          "aten::transpose": 4.2,
-          "aten::empty": 1.8,
-          "aten::as_strided": 0.8
+          "aten::addmm": 24.199,
+          "aten::linear": 6.0,
+          "aten::t": 2.8,
+          "aten::transpose": 2.4,
+          "aten::empty": 1.0,
+          "aten::as_strided": 0.4
         }
       },
       {
         "region_id": 29,
         "layer_id": "snn2_fc",
         "timestep": 8,
-        "ts_us": 12529.69994675368,
-        "dur_us": 53.699943237006664,
+        "ts_us": 8577.700005844235,
+        "dur_us": 41.69996827840805,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 23.7,
-          "aten::linear": 8.0,
-          "aten::t": 5.4,
-          "aten::transpose": 4.8,
-          "aten::empty": 1.899,
-          "aten::as_strided": 1.0
+          "aten::addmm": 16.8,
+          "aten::linear": 7.4,
+          "aten::t": 4.5,
+          "aten::transpose": 4.499,
+          "aten::empty": 1.5,
+          "aten::as_strided": 0.7
         }
       },
       {
         "region_id": 30,
         "layer_id": "dnn2.0:Linear",
         "timestep": 9,
-        "ts_us": 12638.199958018959,
-        "dur_us": 48.70002157986164,
+        "ts_us": 8662.499953061342,
+        "dur_us": 35.70003900676966,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 20.899,
-          "aten::linear": 8.5,
-          "aten::t": 5.1,
-          "aten::transpose": 4.3,
-          "aten::empty": 1.8,
-          "aten::as_strided": 0.7
+          "aten::addmm": 13.399,
+          "aten::linear": 7.1,
+          "aten::t": 3.8,
+          "aten::transpose": 3.3,
+          "aten::empty": 1.6,
+          "aten::as_strided": 0.5
         }
       },
       {
         "region_id": 31,
         "layer_id": "snn2_fc",
         "timestep": 9,
-        "ts_us": 12757.89993815124,
-        "dur_us": 46.80000711232424,
+        "ts_us": 8834.79998447001,
+        "dur_us": 64.50002547353506,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 20.6,
-          "aten::linear": 7.5,
-          "aten::t": 4.6,
-          "aten::transpose": 4.0,
-          "aten::empty": 1.8,
-          "aten::as_strided": 0.8
+          "aten::addmm": 30.299,
+          "aten::linear": 8.7,
+          "aten::t": 6.6,
+          "aten::transpose": 5.7,
+          "aten::empty": 2.6,
+          "aten::as_strided": 1.5
         }
       },
       {
         "region_id": 32,
         "layer_id": "lif2",
         "timestep": 0,
-        "ts_us": 13020.29995713383,
-        "dur_us": 429.2000085115433,
+        "ts_us": 9048.799984157085,
+        "dur_us": 577.7999758720398,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::mul": 45.997,
-          "FastSigmoid": 42.8,
-          "aten::sub": 25.899,
-          "aten::copy_": 23.2,
-          "aten::gt": 21.999,
-          "aten::_to_copy": 18.0,
-          "aten::clamp": 13.2,
-          "aten::add": 7.9,
-          "aten::to": 7.1,
-          "aten::clone": 6.3,
-          "aten::empty_strided": 5.399,
-          "aten::detach": 3.0,
-          "detach": 2.299
+          "aten::detach": 72.399,
+          "aten::mul": 42.999,
+          "FastSigmoid": 41.799,
+          "aten::clamp": 34.799,
+          "aten::copy_": 29.299,
+          "aten::gt": 23.699,
+          "aten::sub": 22.8,
+          "aten::_to_copy": 16.0,
+          "aten::clone": 11.2,
+          "aten::empty_strided": 10.5,
+          "aten::add": 9.699,
+          "aten::to": 7.0,
+          "detach": 2.6
         }
       },
       {
         "region_id": 33,
         "layer_id": "lif2",
         "timestep": 1,
-        "ts_us": 13571.099960245192,
-        "dur_us": 528.1999474391341,
+        "ts_us": 9736.099978908896,
+        "dur_us": 300.40007550269365,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::_to_copy": 73.199,
-          "aten::to": 51.498,
-          "FastSigmoid": 46.398,
-          "aten::copy_": 41.6,
-          "aten::sub": 22.9,
-          "aten::mul": 19.699,
-          "aten::gt": 17.3,
-          "aten::clamp": 13.8,
-          "aten::empty_strided": 11.1,
-          "aten::clone": 9.4,
-          "aten::add": 5.2,
-          "aten::detach": 3.5,
-          "detach": 2.6
+          "FastSigmoid": 29.399,
+          "aten::copy_": 25.399,
+          "aten::sub": 15.0,
+          "aten::_to_copy": 13.8,
+          "aten::mul": 13.5,
+          "aten::gt": 11.4,
+          "aten::clamp": 9.2,
+          "aten::clone": 7.4,
+          "aten::to": 6.6,
+          "aten::empty_strided": 4.299,
+          "aten::add": 3.8,
+          "aten::detach": 3.0,
+          "detach": 1.1
         }
       },
       {
         "region_id": 34,
         "layer_id": "lif2",
         "timestep": 2,
-        "ts_us": 14220.399898476899,
-        "dur_us": 416.10002517700195,
+        "ts_us": 10175.70006661117,
+        "dur_us": 329.0999447926879,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 37.699,
-          "aten::copy_": 28.899,
-          "aten::gt": 27.5,
-          "aten::sub": 18.299,
-          "aten::_to_copy": 16.499,
-          "aten::mul": 16.4,
-          "aten::clamp": 15.199,
-          "aten::clone": 12.1,
-          "aten::to": 7.1,
-          "aten::empty_strided": 5.4,
-          "aten::add": 5.3,
-          "aten::detach": 3.7,
-          "detach": 2.5
+          "aten::_to_copy": 74.498,
+          "FastSigmoid": 23.6,
+          "aten::sub": 15.5,
+          "aten::copy_": 13.3,
+          "aten::mul": 12.7,
+          "aten::gt": 11.499,
+          "aten::clamp": 9.4,
+          "aten::clone": 5.8,
+          "aten::to": 5.0,
+          "aten::empty_strided": 3.9,
+          "aten::add": 3.6,
+          "aten::detach": 3.499,
+          "detach": 1.4
         }
       },
       {
         "region_id": 35,
         "layer_id": "lif2",
         "timestep": 3,
-        "ts_us": 14792.999951168895,
-        "dur_us": 299.89995528012514,
+        "ts_us": 10603.200062178075,
+        "dur_us": 248.09991009533405,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 28.9,
-          "aten::copy_": 24.499,
-          "aten::sub": 14.9,
-          "aten::gt": 13.7,
-          "aten::mul": 12.4,
-          "aten::_to_copy": 11.899,
-          "aten::clamp": 8.4,
-          "aten::to": 6.0,
-          "aten::clone": 5.7,
-          "aten::empty_strided": 3.7,
-          "aten::add": 3.5,
-          "aten::detach": 2.6,
+          "FastSigmoid": 24.999,
+          "aten::copy_": 17.599,
+          "aten::mul": 12.5,
+          "aten::sub": 11.9,
+          "aten::_to_copy": 11.6,
+          "aten::gt": 10.2,
+          "aten::clamp": 6.999,
+          "aten::clone": 5.3,
+          "aten::to": 5.0,
+          "aten::add": 3.4,
+          "aten::empty_strided": 3.1,
+          "aten::detach": 2.3,
           "detach": 1.0
         }
       },
@@ -2250,144 +2250,144 @@
         "region_id": 36,
         "layer_id": "lif2",
         "timestep": 4,
-        "ts_us": 15174.799947999418,
-        "dur_us": 555.9000419452786,
+        "ts_us": 10930.299991741776,
+        "dur_us": 270.4999642446637,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::sub": 62.699,
-          "FastSigmoid": 47.899,
-          "aten::gt": 37.1,
-          "aten::copy_": 32.599,
-          "aten::clone": 23.099,
-          "aten::clamp": 22.499,
-          "aten::mul": 21.4,
-          "aten::_to_copy": 16.5,
-          "aten::empty_strided": 13.6,
-          "aten::add": 7.2,
-          "aten::to": 7.1,
-          "aten::detach": 4.6,
-          "detach": 2.9
+          "FastSigmoid": 28.8,
+          "aten::sub": 20.1,
+          "aten::_to_copy": 14.4,
+          "aten::copy_": 13.999,
+          "aten::mul": 13.4,
+          "aten::gt": 12.299,
+          "aten::clamp": 7.499,
+          "aten::clone": 7.4,
+          "aten::to": 6.6,
+          "aten::empty_strided": 4.1,
+          "aten::add": 3.6,
+          "aten::detach": 2.6,
+          "detach": 1.1
         }
       },
       {
         "region_id": 37,
         "layer_id": "lif2",
         "timestep": 5,
-        "ts_us": 15885.899891145527,
-        "dur_us": 747.8001061826944,
+        "ts_us": 11283.400002866983,
+        "dur_us": 290.39999935775995,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "aten::copy_": 61.499,
-          "FastSigmoid": 57.399,
-          "aten::sub": 46.198,
-          "aten::mul": 39.298,
-          "aten::gt": 35.7,
-          "aten::_to_copy": 25.8,
-          "aten::clamp": 16.7,
-          "aten::empty_strided": 13.5,
-          "aten::clone": 11.199,
-          "aten::to": 9.199,
-          "aten::add": 7.1,
-          "aten::detach": 4.2,
-          "detach": 2.499
+          "FastSigmoid": 29.8,
+          "aten::mul": 26.799,
+          "aten::sub": 17.299,
+          "aten::_to_copy": 14.699,
+          "aten::copy_": 14.0,
+          "aten::gt": 13.799,
+          "aten::clamp": 8.4,
+          "aten::to": 6.9,
+          "aten::clone": 4.7,
+          "aten::empty_strided": 4.3,
+          "aten::add": 4.3,
+          "aten::detach": 2.3,
+          "detach": 0.7
         }
       },
       {
         "region_id": 38,
         "layer_id": "lif2",
         "timestep": 6,
-        "ts_us": 16777.099925093353,
-        "dur_us": 372.90004547685385,
+        "ts_us": 11698.600021190941,
+        "dur_us": 328.69994174689054,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 33.999,
-          "aten::mul": 23.7,
-          "aten::sub": 21.6,
-          "aten::copy_": 18.6,
-          "aten::gt": 16.599,
-          "aten::_to_copy": 15.0,
-          "aten::clamp": 11.199,
-          "aten::clone": 8.3,
-          "aten::to": 5.9,
-          "aten::empty_strided": 5.199,
-          "aten::add": 4.3,
-          "aten::detach": 4.1,
-          "detach": 2.0
+          "FastSigmoid": 30.1,
+          "aten::mul": 25.899,
+          "aten::sub": 22.9,
+          "aten::gt": 16.499,
+          "aten::copy_": 15.8,
+          "aten::_to_copy": 13.099,
+          "aten::clamp": 10.1,
+          "aten::clone": 5.799,
+          "aten::add": 5.7,
+          "aten::to": 5.3,
+          "aten::empty_strided": 4.4,
+          "aten::detach": 2.5,
+          "detach": 1.7
         }
       },
       {
         "region_id": 39,
         "layer_id": "lif2",
         "timestep": 7,
-        "ts_us": 17235.39992235601,
-        "dur_us": 264.400034211576,
+        "ts_us": 12143.20003055036,
+        "dur_us": 353.8000164553523,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 26.0,
-          "aten::copy_": 21.0,
-          "aten::sub": 12.8,
-          "aten::gt": 12.3,
-          "aten::mul": 12.299,
-          "aten::_to_copy": 11.8,
-          "aten::clamp": 8.1,
-          "aten::to": 6.7,
-          "aten::clone": 6.399,
-          "aten::empty_strided": 4.6,
-          "aten::add": 3.7,
-          "aten::detach": 2.7,
-          "detach": 1.2
+          "FastSigmoid": 33.9,
+          "aten::copy_": 28.699,
+          "aten::sub": 21.9,
+          "aten::gt": 18.2,
+          "aten::_to_copy": 16.198,
+          "aten::mul": 13.3,
+          "aten::clamp": 12.399,
+          "aten::clone": 9.0,
+          "aten::to": 6.9,
+          "aten::empty_strided": 5.6,
+          "aten::add": 4.6,
+          "aten::detach": 3.9,
+          "detach": 2.2
         }
       },
       {
         "region_id": 40,
         "layer_id": "lif2",
         "timestep": 8,
-        "ts_us": 17576.499958522618,
-        "dur_us": 238.09995036572218,
+        "ts_us": 12581.499991938472,
+        "dur_us": 613.3000133559108,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 22.9,
-          "aten::_to_copy": 13.2,
-          "aten::copy_": 11.899,
-          "aten::gt": 11.4,
-          "aten::sub": 10.9,
-          "aten::mul": 10.4,
-          "aten::clamp": 7.0,
-          "aten::clone": 6.1,
-          "aten::to": 5.8,
-          "aten::empty_strided": 3.999,
-          "aten::add": 3.2,
-          "aten::detach": 2.5,
-          "detach": 1.0
+          "aten::sub": 55.798,
+          "FastSigmoid": 50.9,
+          "aten::mul": 38.999,
+          "aten::gt": 32.898,
+          "aten::copy_": 25.4,
+          "aten::_to_copy": 20.6,
+          "aten::clamp": 17.1,
+          "aten::add": 14.0,
+          "aten::to": 8.4,
+          "aten::clone": 8.4,
+          "aten::empty_strided": 7.7,
+          "aten::detach": 4.2,
+          "detach": 2.6
         }
       },
       {
         "region_id": 41,
         "layer_id": "lif2",
         "timestep": 9,
-        "ts_us": 17915.39997793734,
-        "dur_us": 239.69996254891157,
+        "ts_us": 13426.500023342669,
+        "dur_us": 664.2999360337853,
         "domain": "state",
         "parent_id": null,
         "ops": {
-          "FastSigmoid": 23.499,
-          "aten::copy_": 22.499,
-          "aten::_to_copy": 11.4,
-          "aten::sub": 11.2,
-          "aten::mul": 10.8,
-          "aten::gt": 10.4,
-          "aten::clamp": 7.6,
-          "aten::to": 5.8,
-          "aten::clone": 5.1,
-          "aten::add": 3.7,
-          "aten::empty_strided": 3.4,
-          "aten::detach": 3.3,
-          "detach": 1.2
+          "FastSigmoid": 65.799,
+          "aten::sub": 48.999,
+          "aten::gt": 48.199,
+          "aten::copy_": 46.299,
+          "aten::mul": 45.098,
+          "aten::_to_copy": 20.499,
+          "aten::clamp": 17.9,
+          "aten::clone": 17.299,
+          "aten::empty_strided": 12.7,
+          "aten::to": 8.6,
+          "aten::add": 7.8,
+          "aten::detach": 4.4,
+          "detach": 2.5
         }
       }
     ],
@@ -2400,7 +2400,7 @@
         "domain": "dense",
         "spike_driven": false,
         "macs": 12845056,
-        "self_time_us": 113.3,
+        "self_time_us": 160.1,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -2417,7 +2417,7 @@
         "domain": "dense",
         "spike_driven": false,
         "macs": 7225344,
-        "self_time_us": 185.8,
+        "self_time_us": 363.1,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -2434,7 +2434,7 @@
         "domain": "dense",
         "spike_driven": true,
         "macs": 1310720,
-        "self_time_us": 639.0,
+        "self_time_us": 525.9,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -2451,7 +2451,7 @@
         "domain": "dense",
         "spike_driven": false,
         "macs": 204800,
-        "self_time_us": 602.5,
+        "self_time_us": 444.1,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -2468,7 +2468,7 @@
         "domain": "state",
         "spike_driven": false,
         "macs": 0,
-        "self_time_us": 5866.7,
+        "self_time_us": 3343.9,
         "state_bytes": 16384,
         "extra": {
           "fan": {}
@@ -2482,7 +2482,7 @@
         "domain": "state",
         "spike_driven": false,
         "macs": 0,
-        "self_time_us": 4092.2,
+        "self_time_us": 3976.4,
         "state_bytes": 2560,
         "extra": {
           "fan": {}
@@ -2493,143 +2493,143 @@
       {
         "layer_id": "lif1",
         "path": "out-gpu\\repeated_dnn_snn\\spikes\\spikes_T10_lif1.npy",
-        "sha256": "987cc67be482228ffeccae21c825bbc0636395d89f29407bf443dcfa97054e79",
+        "sha256": "cdace4ae5980717bf5989b566184302a2d419f59d9ba82a1db88074ad13b2d75",
         "timesteps": 10,
         "batch": 64,
         "neurons": 64,
         "fanout": 32,
         "fanout_from": "dnn2.0:Linear",
-        "synops": 118272,
+        "synops": 460832,
         "metrics": {
           "timesteps": 10,
           "batch": 64,
           "neurons": 64,
-          "spikes": 3696,
-          "mean_rate": 0.090234375,
+          "spikes": 14401,
+          "mean_rate": 0.3515869140625,
           "per_timestep_rate": [
-            0.00048828125,
-            0.060302734375,
-            0.09912109375,
-            0.100341796875,
-            0.10009765625,
-            0.123291015625,
-            0.091064453125,
-            0.1162109375,
-            0.101806640625,
-            0.109619140625
+            0.333251953125,
+            0.35400390625,
+            0.35498046875,
+            0.35400390625,
+            0.352783203125,
+            0.35546875,
+            0.3505859375,
+            0.35400390625,
+            0.35302734375,
+            0.353759765625
           ],
-          "dead_fraction": 0.0625,
-          "saturated_fraction": 0.0,
-          "first_spike_step_mean": 3.5512295081967213,
+          "dead_fraction": 0.421875,
+          "saturated_fraction": 0.125,
+          "first_spike_step_mean": 0.23076923076923078,
           "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
-          "never_fired_sample_neuron_fraction": 0.642578125,
+          "never_fired_sample_neuron_fraction": 0.62548828125,
           "spikes_per_neuron": [
-            47,
-            75,
-            128,
-            37,
-            10,
-            87,
-            26,
-            19,
+            95,
+            0,
+            350,
+            540,
+            502,
+            495,
+            273,
+            0,
+            63,
+            561,
+            0,
+            0,
+            52,
+            0,
+            135,
+            640,
+            0,
+            640,
+            0,
+            0,
+            0,
+            0,
             56,
-            30,
-            2,
-            30,
-            32,
-            36,
+            640,
             0,
-            8,
-            227,
-            155,
-            8,
+            540,
+            110,
+            135,
             0,
-            1,
-            30,
-            4,
-            43,
             0,
-            249,
-            9,
-            14,
-            68,
-            28,
-            14,
-            5,
-            40,
-            4,
-            190,
-            1,
-            66,
-            128,
-            8,
-            22,
-            94,
-            270,
-            80,
-            3,
-            145,
-            2,
-            57,
-            68,
-            1,
-            175,
-            59,
-            158,
-            5,
-            32,
-            213,
-            156,
-            84,
-            2,
             0,
-            58,
-            51,
-            1,
-            1,
-            44
+            536,
+            554,
+            617,
+            640,
+            640,
+            0,
+            0,
+            0,
+            0,
+            0,
+            475,
+            640,
+            431,
+            0,
+            0,
+            123,
+            493,
+            561,
+            640,
+            23,
+            0,
+            0,
+            0,
+            542,
+            0,
+            540,
+            26,
+            0,
+            0,
+            236,
+            60,
+            640,
+            157
           ],
           "spikes_per_neuron_truncated": false,
           "top_neurons": [
             {
-              "neuron": 41,
-              "spikes": 270
-            },
-            {
-              "neuron": 25,
-              "spikes": 249
-            },
-            {
-              "neuron": 16,
-              "spikes": 227
-            },
-            {
-              "neuron": 54,
-              "spikes": 213
-            },
-            {
-              "neuron": 34,
-              "spikes": 190
-            },
-            {
-              "neuron": 49,
-              "spikes": 175
-            },
-            {
-              "neuron": 51,
-              "spikes": 158
-            },
-            {
-              "neuron": 55,
-              "spikes": 156
+              "neuron": 15,
+              "spikes": 640
             },
             {
               "neuron": 17,
-              "spikes": 155
+              "spikes": 640
             },
             {
-              "neuron": 44,
-              "spikes": 145
+              "neuron": 23,
+              "spikes": 640
+            },
+            {
+              "neuron": 62,
+              "spikes": 640
+            },
+            {
+              "neuron": 49,
+              "spikes": 640
+            },
+            {
+              "neuron": 42,
+              "spikes": 640
+            },
+            {
+              "neuron": 34,
+              "spikes": 640
+            },
+            {
+              "neuron": 35,
+              "spikes": 640
+            },
+            {
+              "neuron": 33,
+              "spikes": 617
+            },
+            {
+              "neuron": 48,
+              "spikes": 561
             }
           ]
         }
@@ -2637,7 +2637,7 @@
       {
         "layer_id": "lif2",
         "path": "out-gpu\\repeated_dnn_snn\\spikes\\spikes_T10_lif2.npy",
-        "sha256": "ece9a2adaac89ffa60af3abe3ca7c4cffd8061ca0038336d8c4b7a3a37616275",
+        "sha256": "f23a2b5724381121c361dc7f8af62b1b4480a3b389915ea46df464ec074426c2",
         "timesteps": 10,
         "batch": 64,
         "neurons": 10,
@@ -2648,65 +2648,65 @@
           "timesteps": 10,
           "batch": 64,
           "neurons": 10,
-          "spikes": 69,
-          "mean_rate": 0.01078125,
+          "spikes": 225,
+          "mean_rate": 0.03515625,
           "per_timestep_rate": [
             0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.00625,
             0.0328125,
-            0.0296875,
-            0.0390625
+            0.025,
+            0.028125,
+            0.028125,
+            0.0421875,
+            0.0453125,
+            0.0546875,
+            0.053125,
+            0.0421875
           ],
-          "dead_fraction": 0.7,
+          "dead_fraction": 0.4,
           "saturated_fraction": 0.0,
-          "first_spike_step_mean": 7.942028985507246,
+          "first_spike_step_mean": 5.104761904761904,
           "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
-          "never_fired_sample_neuron_fraction": 0.8921875,
+          "never_fired_sample_neuron_fraction": 0.8359375,
           "spikes_per_neuron": [
             0,
-            12,
+            55,
             0,
+            10,
+            26,
+            26,
             0,
-            56,
+            49,
             0,
-            0,
-            0,
-            0,
-            1
+            59
           ],
           "spikes_per_neuron_truncated": false,
           "top_neurons": [
             {
-              "neuron": 4,
-              "spikes": 56
+              "neuron": 9,
+              "spikes": 59
             },
             {
               "neuron": 1,
-              "spikes": 12
+              "spikes": 55
             },
             {
-              "neuron": 9,
-              "spikes": 1
+              "neuron": 7,
+              "spikes": 49
             },
             {
-              "neuron": 2,
-              "spikes": 0
-            },
-            {
-              "neuron": 3,
-              "spikes": 0
+              "neuron": 4,
+              "spikes": 26
             },
             {
               "neuron": 5,
-              "spikes": 0
+              "spikes": 26
             },
             {
-              "neuron": 6,
+              "neuron": 3,
+              "spikes": 10
+            },
+            {
+              "neuron": 2,
               "spikes": 0
             },
             {
@@ -2714,7 +2714,7 @@
               "spikes": 0
             },
             {
-              "neuron": 7,
+              "neuron": 6,
               "spikes": 0
             },
             {
@@ -2762,78 +2762,78 @@
         "detail": {
           "keyed_regions": 42,
           "matched_regions": 42,
-          "attributed_us": 6426.266,
-          "unattributed_us": 592.689,
-          "attribution_rate": 0.915559,
+          "attributed_us": 4890.692,
+          "unattributed_us": 620.984,
+          "attribution_rate": 0.887333,
           "unattributed_events": 45,
           "unattributed_top": [
             {
+              "op": "aten::max_pool2d",
+              "self_time_us": 188.296
+            },
+            {
               "op": "aten::relu",
-              "self_time_us": 202.295
+              "self_time_us": 162.697
             },
             {
               "op": "aten::clamp_min",
-              "self_time_us": 148.699
+              "self_time_us": 112.296
             },
             {
               "op": "aten::add",
-              "self_time_us": 56.3
+              "self_time_us": 60.198
             },
             {
               "op": "aten::max_pool2d_with_indices",
-              "self_time_us": 55.399
-            },
-            {
-              "op": "aten::view",
-              "self_time_us": 28.899
-            },
-            {
-              "op": "aten::fill_",
-              "self_time_us": 27.499
-            },
-            {
-              "op": "aten::max_pool2d",
-              "self_time_us": 22.899
+              "self_time_us": 28.799
             },
             {
               "op": "aten::zeros_like",
-              "self_time_us": 17.2
+              "self_time_us": 17.8
             },
             {
-              "op": "aten::empty_strided",
-              "self_time_us": 13.2
+              "op": "aten::fill_",
+              "self_time_us": 16.7
+            },
+            {
+              "op": "aten::zero_",
+              "self_time_us": 10.8
             },
             {
               "op": "aten::empty_like",
-              "self_time_us": 10.3
+              "self_time_us": 10.299
+            },
+            {
+              "op": "aten::view",
+              "self_time_us": 7.0
             }
           ],
           "sync_us": 0,
-          "instrument_us": 878.182,
+          "instrument_us": 696.386,
           "instrument_top": [
             {
-              "op": "aten::detach",
-              "self_time_us": 246.59
-            },
-            {
               "op": "aten::copy_",
-              "self_time_us": 204.897
+              "self_time_us": 266.395
             },
             {
               "op": "aten::_to_copy",
-              "self_time_us": 197.396
+              "self_time_us": 171.796
             },
             {
-              "op": "detach",
-              "self_time_us": 91.6
+              "op": "aten::detach",
+              "self_time_us": 92.199
             },
             {
               "op": "aten::to",
-              "self_time_us": 76.0
+              "self_time_us": 66.297
             },
             {
               "op": "aten::empty_strided",
-              "self_time_us": 61.699
+              "self_time_us": 56.5
+            },
+            {
+              "op": "detach",
+              "self_time_us": 43.199
             }
           ]
         }
@@ -2894,12 +2894,12 @@
       "executed_macs": 21585920,
       "output_latency": {
         "layer_id": "lif2",
-        "first_spike_step": 6,
+        "first_spike_step": 1,
         "timesteps": 10,
         "unit": "타임스텝 인덱스 (0부터)"
       },
       "state_bytes": 18944,
-      "synops": 118272
+      "synops": 460832
     },
     "warnings": [],
     "schema": "xnn.trace",

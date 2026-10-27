@@ -4,7 +4,7 @@
   "batch": 64,
   "neurons": 10,
   "path": "out-gpu\\fcsnn\\spikes\\spikes_T10_lif2.npy",
-  "sha256": "7276a3102dbd2b7b8c9ef141f34a37f4793a7d77c2eb28ca870afd17155612f2",
+  "sha256": "0f0d7470c6ddeaf68eec0bc60ef3bbde50373aebf2a0d57d6f00fe1cb9ed23a9",
   "quantity": "spikes",
   "axes": [
     "time",
@@ -21,78 +21,78 @@
     "timesteps": 10,
     "batch": 64,
     "neurons": 10,
-    "spikes": 458,
-    "mean_rate": 0.0715625,
+    "spikes": 268,
+    "mean_rate": 0.041875,
     "per_timestep_rate": [
-      0.0,
-      0.0046875,
-      0.040625,
-      0.0890625,
-      0.0875,
-      0.1046875,
-      0.0859375,
-      0.10625,
-      0.0890625,
-      0.1078125
+      0.0125,
+      0.046875,
+      0.0453125,
+      0.0421875,
+      0.0484375,
+      0.0421875,
+      0.04375,
+      0.0421875,
+      0.0453125,
+      0.05
     ],
-    "dead_fraction": 0.0,
+    "dead_fraction": 0.5,
     "saturated_fraction": 0.0,
-    "first_spike_step_mean": 4.615384615384615,
+    "first_spike_step_mean": 1.2439024390243902,
     "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
-    "never_fired_sample_neuron_fraction": 0.6546875,
+    "never_fired_sample_neuron_fraction": 0.9359375,
     "spikes_per_neuron": [
-      48,
-      91,
-      93,
-      14,
-      7,
-      160,
-      32,
-      7,
-      4,
-      2
+      58,
+      53,
+      0,
+      0,
+      55,
+      0,
+      37,
+      65,
+      0,
+      0
     ],
     "spikes_per_neuron_truncated": false,
     "top_neurons": [
       {
-        "neuron": 5,
-        "spikes": 160
-      },
-      {
-        "neuron": 2,
-        "spikes": 93
-      },
-      {
-        "neuron": 1,
-        "spikes": 91
+        "neuron": 7,
+        "spikes": 65
       },
       {
         "neuron": 0,
-        "spikes": 48
-      },
-      {
-        "neuron": 6,
-        "spikes": 32
-      },
-      {
-        "neuron": 3,
-        "spikes": 14
+        "spikes": 58
       },
       {
         "neuron": 4,
-        "spikes": 7
+        "spikes": 55
       },
       {
-        "neuron": 7,
-        "spikes": 7
+        "neuron": 1,
+        "spikes": 53
+      },
+      {
+        "neuron": 6,
+        "spikes": 37
+      },
+      {
+        "neuron": 2,
+        "spikes": 0
+      },
+      {
+        "neuron": 3,
+        "spikes": 0
+      },
+      {
+        "neuron": 5,
+        "spikes": 0
       },
       {
         "neuron": 8,
-        "spikes": 4
+        "spikes": 0
       },
       {
         "neuron": 9,
-        "spikes": 2
+        "spikes": 0
       }
     ]
   },

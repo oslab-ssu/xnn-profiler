@@ -22,6 +22,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from xnnprof.emit import trace_json                 # noqa: E402
+from xnnprof.weights import load_or_train           # noqa: E402
 from xnnprof.models import REGISTRY, build          # noqa: E402
 from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
@@ -62,6 +63,9 @@ def main() -> int:
                     help="--data 에 없으면 내려받는다")
     ap.add_argument("--raw-input", action="store_true")
     ap.add_argument("--out", default="out")
+    ap.add_argument("--weights", default="",
+                    help="가중치 디렉터리. 파일이 있으면 불러 쓰고 없으면 학습 후 저장한다. "
+                         "장치를 바꿔 가며 같은 모델을 측정할 때 쓴다")
     ap.add_argument("--device", default="cpu",
                     help="cpu | cuda. cuda에서는 NVTX 라벨을 함께 내보낸다")
     ap.add_argument("--no-torch-profiler", action="store_true",
@@ -88,7 +92,8 @@ def main() -> int:
         torch.manual_seed(0)
         model, fkw = build(name, num_steps=args.steps)
         model = model.to(dev)
-        if args.train:
+
+        def train_once():
             opt = torch.optim.Adam(model.parameters(), lr=1e-3)
             lossf = nn.CrossEntropyLoss()
             model.train()
@@ -98,6 +103,10 @@ def main() -> int:
                 opt.zero_grad()
                 lossf(model(xb, **fkw), yb).backward()
                 opt.step()
+
+        origin, digest = load_or_train(
+            model, name, args.weights, dev,
+            train_once if args.train else None)
         xb, yb = next(iter(mnist(args.batch, args.batch, False, args.data,
                                  args.raw_input, args.download)))
         xb, yb = xb.to(dev), yb.to(dev)
@@ -107,6 +116,8 @@ def main() -> int:
                         cover_leaves=args.cover_leaves,
                         sync_regions=args.sync_regions,
                         with_torch_profiler=not args.no_torch_profiler, **fkw)
+        trace.env["weights"] = origin
+        trace.env["weights_sha256"] = digest
         model.eval()
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
@@ -115,7 +126,7 @@ def main() -> int:
         print("=" * 76)
         print(summary(trace))
         print(f"\n-> {out_dir}/xnn-trace.json  "
-              f"(device {dev}, 배치 정확도 {acc:.1%})")
+              f"(device {dev}, 가중치 {origin} {digest[:12]}, 배치 정확도 {acc:.1%})")
         print()
     return 0
 
