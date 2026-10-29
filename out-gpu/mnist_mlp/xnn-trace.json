@@ -49,8 +49,8 @@
       "ph": "X",
       "name": "1:Linear@t0",
       "cat": "dense",
-      "ts": 850.3,
-      "dur": 134.8,
+      "ts": 582.9,
+      "dur": 101.4,
       "pid": 1,
       "tid": 1,
       "args": {
@@ -61,12 +61,12 @@
         "in_loop": false,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 94.2,
-          "aten::linear": 9.9,
-          "aten::t": 7.4,
-          "aten::transpose": 5.7,
-          "aten::empty": 3.5,
-          "aten::as_strided": 1.6
+          "aten::addmm": 70.897,
+          "aten::linear": 7.0,
+          "aten::t": 5.3,
+          "aten::transpose": 4.299,
+          "aten::empty": 2.9,
+          "aten::as_strided": 1.5
         }
       }
     },
@@ -74,8 +74,8 @@
       "ph": "X",
       "name": "3:Linear@t0",
       "cat": "dense",
-      "ts": 1358.7,
-      "dur": 145.7,
+      "ts": 966.9,
+      "dur": 106.9,
       "pid": 1,
       "tid": 2,
       "args": {
@@ -86,12 +86,12 @@
         "in_loop": false,
         "state_bytes": 0,
         "ops_self_time_us": {
-          "aten::addmm": 58.9,
-          "aten::linear": 12.6,
-          "aten::t": 7.6,
-          "aten::transpose": 5.8,
-          "aten::empty": 3.5,
-          "aten::as_strided": 2.3
+          "aten::addmm": 61.699,
+          "aten::linear": 10.497,
+          "aten::t": 8.1,
+          "aten::transpose": 5.9,
+          "aten::empty": 3.399,
+          "aten::as_strided": 2.5
         }
       }
     }
@@ -102,7 +102,7 @@
     "model": "mnist_mlp"
   },
   "xnn": {
-    "run_id": "mnist_mlp-cuda-T10-1793073261",
+    "run_id": "mnist_mlp-cuda-T10-1793073611",
     "model_id": "mnist_mlp",
     "framework": "pytorch",
     "timesteps": 10,
@@ -119,6 +119,8 @@
       "cuda": "12.4",
       "driver": null,
       "region_timing": "cpu-launch-window",
+      "weights": "loaded",
+      "weights_sha256": "60b26e59dde97371be7d03f3f94aedee41cb02d4a3aa51dff281d19ca0650d42",
       "batch_accuracy": 0.9688
     },
     "regions": [
@@ -126,34 +128,34 @@
         "region_id": 0,
         "layer_id": "1:Linear",
         "timestep": 0,
-        "ts_us": 850.2999553456903,
-        "dur_us": 134.79997869580984,
+        "ts_us": 582.900014705956,
+        "dur_us": 101.39995720237494,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 94.2,
-          "aten::linear": 9.9,
-          "aten::t": 7.4,
-          "aten::transpose": 5.7,
-          "aten::empty": 3.5,
-          "aten::as_strided": 1.6
+          "aten::addmm": 70.897,
+          "aten::linear": 7.0,
+          "aten::t": 5.3,
+          "aten::transpose": 4.299,
+          "aten::empty": 2.9,
+          "aten::as_strided": 1.5
         }
       },
       {
         "region_id": 1,
         "layer_id": "3:Linear",
         "timestep": 0,
-        "ts_us": 1358.6999848484993,
-        "dur_us": 145.69994527846575,
+        "ts_us": 966.9000282883644,
+        "dur_us": 106.89999908208847,
         "domain": "dense",
         "parent_id": null,
         "ops": {
-          "aten::addmm": 58.9,
-          "aten::linear": 12.6,
-          "aten::t": 7.6,
-          "aten::transpose": 5.8,
-          "aten::empty": 3.5,
-          "aten::as_strided": 2.3
+          "aten::addmm": 61.699,
+          "aten::linear": 10.497,
+          "aten::t": 8.1,
+          "aten::transpose": 5.9,
+          "aten::empty": 3.399,
+          "aten::as_strided": 2.5
         }
       }
     ],
@@ -166,7 +168,7 @@
         "domain": "dense",
         "spike_driven": false,
         "macs": 50176000,
-        "self_time_us": 134.8,
+        "self_time_us": 101.4,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -183,7 +185,7 @@
         "domain": "dense",
         "spike_driven": false,
         "macs": 640000,
-        "self_time_us": 145.7,
+        "self_time_us": 106.9,
         "state_bytes": 0,
         "extra": {
           "fan": {
@@ -231,38 +233,38 @@
         "detail": {
           "keyed_regions": 2,
           "matched_regions": 2,
-          "attributed_us": 213.0,
-          "unattributed_us": 140.5,
-          "attribution_rate": 0.602546,
+          "attributed_us": 183.991,
+          "unattributed_us": 108.495,
+          "attribution_rate": 0.629059,
           "unattributed_events": 4,
           "unattributed_top": [
             {
               "op": "aten::clamp_min",
-              "self_time_us": 103.6
-            },
-            {
-              "op": "aten::flatten",
-              "self_time_us": 16.4
+              "self_time_us": 74.397
             },
             {
               "op": "aten::relu",
-              "self_time_us": 14.9
+              "self_time_us": 20.998
+            },
+            {
+              "op": "aten::flatten",
+              "self_time_us": 7.9
             },
             {
               "op": "aten::view",
-              "self_time_us": 5.6
+              "self_time_us": 5.2
             }
           ],
           "sync_us": 0,
-          "instrument_us": 13.3,
+          "instrument_us": 13.099,
           "instrument_top": [
             {
               "op": "aten::detach",
-              "self_time_us": 7.7
+              "self_time_us": 7.799
             },
             {
               "op": "detach",
-              "self_time_us": 5.6
+              "self_time_us": 5.3
             }
           ]
         }

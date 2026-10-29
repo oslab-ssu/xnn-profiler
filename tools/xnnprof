@@ -28,6 +28,17 @@ from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
 
 
+def default_data() -> str:
+    """MNIST 기본 위치. 저장소 안에 없으면 옆의 profiler-verification/data를 본다."""
+    here = os.path.join(REPO, "data")
+    if os.path.isdir(os.path.join(here, "MNIST")):
+        return here
+    sibling = os.path.join(os.path.dirname(REPO), "profiler-verification", "data")
+    if os.path.isdir(os.path.join(sibling, "MNIST")):
+        return sibling
+    return here
+
+
 def mnist(batch: int, n: int, train: bool, root: str, raw: bool,
           download: bool = False):
     import torch
@@ -57,8 +68,9 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=10)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--train", type=int, default=6000)
-    ap.add_argument("--data", default=os.path.join(REPO, "data"),
-                    help="MNIST 위치. 기본값은 저장소의 data/")
+    ap.add_argument("--data", default=default_data(),
+                    help="MNIST 위치. 기본값은 저장소의 data/, 없으면 "
+                         "옆의 profiler-verification/data")
     ap.add_argument("--download", action="store_true",
                     help="--data 에 없으면 내려받는다")
     ap.add_argument("--raw-input", action="store_true")
