@@ -243,14 +243,20 @@ class TorchHookCollector(Collector):
 
             if a["is_snn"]:
                 spk = output[0] if isinstance(output, tuple) else output
-                mem = output[1] if isinstance(output, tuple) and len(output) > 1 else None
+                # 뉴런 종류마다 상태 텐서 개수가 다르다. Leaky는 (spk, mem),
+                # Synaptic은 (spk, syn, mem), Alpha는 (spk, syn_exc, syn_inh, mem).
+                # 첫 항목만 스파이크이고 나머지는 전부 지속 상태다.
+                states = [t for t in (output[1:] if isinstance(output, tuple) else ())
+                          if torch.is_tensor(t)]
                 if torch.is_tensor(spk):
                     # 장치에 둔 채로 모은다. 스텝마다 .cpu()를 부르면 GPU에서
                     # 매 스텝 동기화가 걸려 계측이 실행 순서를 바꾼다.
                     self._spikes.setdefault(lid, []).append(
                         spk.detach().to(torch.uint8))
-                if mem is not None and torch.is_tensor(mem):
-                    a["state_bytes"] = int(mem.numel() * mem.element_size())
+                if states:
+                    a["state_bytes"] = sum(int(t.numel() * t.element_size())
+                                           for t in states)
+                    a["state_tensors"] = len(states)
             if inst is not None:
                 self._close_label(inst)
         return post
