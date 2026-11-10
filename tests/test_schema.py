@@ -151,8 +151,97 @@ def test_sources_declare_limits():
     print("  수집기 귀속 한계 선언 OK")
 
 
+def test_steady_state():
+    from xnnprof.steady import steady_state
+    # 처음부터 같은 패턴 — 도달 스텝 1
+    ss = steady_state([[0, 1, 0, 1]] * 4)
+    assert ss["reached_step"] == 1 and ss["c_t"] == [0.0, 0.0, 0.0], ss
+    # 스텝 0->1 에서만 바뀌고 그 뒤 고정 — 도달 스텝 2
+    ss = steady_state([[1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 0, 1], [0, 1, 0, 1]])
+    assert ss["reached_step"] == 2, ss
+    # 매 스텝 완전히 뒤집힘 — 교대 패턴이므로 c_t > 1, 미도달
+    flip = [[1, 1, 0, 0], [0, 0, 1, 1], [1, 1, 0, 0], [0, 0, 1, 1]]
+    ss = steady_state(flip)
+    assert ss["reached_step"] is None and ss["c_t_min"] > 1.0, ss
+    # 발화율 0 — 정규화 분모가 0이므로 정의되지 않는다. 0을 넣지 않는다
+    ss = steady_state([[0, 0], [0, 0], [0, 0]])
+    assert "reached_step" not in ss and ss["reason"], ss
+    print("  정상상태 도달 스텝 OK")
+
+
+def test_membrane_histogram():
+    from xnnprof.observations import MEM_BINS, derive_membrane_metrics
+    counts = [[0] * MEM_BINS for _ in range(2)]
+    counts[0][0] = 50          # mem < 0
+    counts[0][60] = 25         # 임계 근처 (칸 57~64)
+    counts[0][65] = 25         # mem >= θ
+    counts[1][30] = 100        # 중간
+    m = derive_membrane_metrics(counts)
+    assert m["bins"] == MEM_BINS and m["near_bins"] == [57, 64]
+    assert m["near_threshold_fraction"] == [0.25, 0.0], m
+    assert m["at_or_above_threshold_fraction"] == [0.25, 0.0]
+    assert m["below_zero_fraction"] == [0.5, 0.0]
+    print("  막전위 히스토그램 OK")
+
+
+def test_op_tree_nesting():
+    from xnnprof.collect.torch_prof import nest
+    calls = [{"name": "aten::linear", "depth": 1, "off_us": 0.0, "dur_us": 90.0},
+             {"name": "aten::addmm", "depth": 2, "off_us": 5.0, "dur_us": 200.0},
+             {"name": "aten::t", "depth": 2, "off_us": 1.0, "dur_us": 2.0}]
+    out = nest(calls, dur_us=100.0, cap=10)
+    assert [c["depth"] for c in out] == [1, 2, 2], out
+    deep = next(c for c in out if c["name"] == "aten::addmm")
+    assert deep["off_us"] + deep["dur_us"] <= 100.0 and deep["clamped"]
+    # 개수 상한은 깊이 단위로 끊는다 — 중간 단계만 빠지면 중첩이 깨진다
+    assert {c["depth"] for c in nest(calls, 100.0, cap=1)} == {1}
+    print("  연산자 호출 계층 OK")
+
+
+def test_nsys_projection():
+    import os
+    import sqlite3
+    import tempfile
+    from xnnprof.collect.nsys import NsysCollector
+
+    t = sample()
+    db = os.path.join(tempfile.mkdtemp(), "x.sqlite")
+    c = sqlite3.connect(db)
+    c.executescript("""
+    CREATE TABLE NVTX_EVENTS(start INT, end INT, eventType INT, text TEXT,
+                             globalTid INT);
+    CREATE TABLE CUPTI_ACTIVITY_KIND_RUNTIME(start INT, end INT, globalTid INT,
+                                             correlationId INT);
+    CREATE TABLE CUPTI_ACTIVITY_KIND_KERNEL(start INT, end INT,
+                                            correlationId INT, shortName INT);
+    CREATE TABLE StringIds(id INT, value TEXT);
+    """)
+    c.execute("INSERT INTO NVTX_EVENTS VALUES(100,200,59,'fc2@t0',7)")
+    c.execute("INSERT INTO NVTX_EVENTS VALUES(200,300,59,'xnn::instrument',7)")
+    c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(150,160,7,1)")
+    c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(250,260,7,2)")
+    # 커널은 범위가 닫힌 뒤에 실행된다. 발행 시점으로 묶어야 한다
+    c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(9000,12000,1,1)")
+    c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(20000,21000,2,1)")
+    c.execute("INSERT INTO StringIds VALUES(1,'sgemm')")
+    c.commit()
+    c.close()
+
+    src = NsysCollector(db).collect(t)
+    assert src.status == "captured", src
+    g = t.region("fc2", 0).gpu
+    assert g["kernels"] == 1 and g["kernel_us"] == 3.0, g
+    assert g["top_kernels"][0]["name"] == "sgemm"
+    # 계측 라벨 안에서 발행된 커널은 구간의 몫이 아니다
+    assert src.detail["kernel_us_in_ranges"] == 3.0
+    assert src.detail["kernel_us_total"] == 4.0
+    print("  NVTX GPU 투영 OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
-               test_trace_event_format, test_roundtrip, test_sources_declare_limits):
+               test_trace_event_format, test_roundtrip, test_sources_declare_limits,
+               test_steady_state, test_membrane_histogram, test_op_tree_nesting,
+               test_nsys_projection):
         fn()
     print("\n계약 테스트 전부 통과")

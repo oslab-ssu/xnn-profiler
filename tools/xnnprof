@@ -89,6 +89,13 @@ def main() -> int:
                          "레이어 간 겹침이 사라지므로 합계는 실행 시간보다 길어진다")
     ap.add_argument("--cover-leaves", action="store_true",
                     help="자식이 없는 모든 모듈에 계측 지점을 삽입한다")
+    ap.add_argument("--no-membrane", action="store_true",
+                    help="막전위 분포를 산출하지 않는다. 뉴런 모듈 호출마다 "
+                         "히스토그램 커널 2개가 추가되므로, 계측 비용을 "
+                         "비교할 때 끈다")
+    ap.add_argument("--no-op-tree", action="store_true",
+                    help="구간 안의 연산자 호출 계층을 내보내지 않는다. "
+                         "중첩 슬라이스가 빠지면 Flame Graph가 그려지지 않는다")
     args = ap.parse_args()
 
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
@@ -127,6 +134,8 @@ def main() -> int:
                         batch=args.batch, out_dir=out_dir, device=dev,
                         cover_leaves=args.cover_leaves,
                         sync_regions=args.sync_regions,
+                        membrane=not args.no_membrane,
+                        op_tree=not args.no_op_tree,
                         with_torch_profiler=not args.no_torch_profiler, **fkw)
         trace.env["weights"] = origin
         trace.env["weights_sha256"] = digest

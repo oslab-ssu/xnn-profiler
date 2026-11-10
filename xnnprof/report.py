@@ -64,6 +64,19 @@ def summary(trace: Trace) -> str:
             out.append(f"상태 메모리         {m['state_bytes']:,} bytes")
         if m.get("synops") is not None:
             out.append(f"SynOps              {m['synops']:,}")
+        for lid, ss in (m.get("steady_state") or {}).items():
+            step = ss.get("reached_step")
+            rng = (f"c_t {ss['c_t_min']:.3f}~{ss['c_t_max']:.3f}"
+                   if "c_t_min" in ss else ss.get("reason", ""))
+            got = f"{step} / T={trace.timesteps}" if step is not None else "미도달"
+            out.append(f"정상상태 도달 스텝  {got:14s} {lid:10s} {rng}")
+        for lid, mb in (m.get("membrane_distribution") or {}).items():
+            near = mb.get("near_threshold_fraction_mean")
+            if near is None:
+                continue
+            lo, hi = (mb.get("near_bins") or [0, 0])
+            out.append(f"막전위 임계 근처    {near:.2%} (평균)   {lid:10s} "
+                       f"θ={mb['threshold']} 칸 {lo}~{hi}/{mb['bins']}")
 
     out.append("")
     out.append("출처")

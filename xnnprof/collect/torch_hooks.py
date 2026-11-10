@@ -18,7 +18,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from ..schema import DENSE, Layer, Region, SpikeRef, STATE, Trace
+from ..observations import MEM_BINS, MEM_IN_RANGE
+from ..schema import DENSE, Layer, MembraneRef, Region, SpikeRef, STATE, Trace
 from .base import Collector, REGION
 
 INSTRUMENT_LABEL = "xnn::instrument"   # 계측 자신의 비용을 담는 라벨
@@ -26,6 +27,23 @@ INSTRUMENT_LABEL = "xnn::instrument"   # 계측 자신의 비용을 담는 라�
 
 def is_snn(module) -> bool:
     return type(module).__module__.startswith(("snntorch", "spikingjelly"))
+
+
+def theta_of(module):
+    """임계 θ. 측정 중이 아니라 `attach()` 때 한 번 읽어 캐시한다.
+
+    snntorch는 `threshold`를 텐서 버퍼로 들고 있어서, hook 안에서 `float()`로
+    꺼내면 GPU에서 값을 내리느라 호스트 동기화가 걸린다. 그러면 계측이 측정
+    대상의 실행 순서를 바꾼다. 읽히지 않으면 항목을 산출하지 않는다.
+    """
+    t = getattr(module, "threshold", None)
+    if t is None:
+        return None
+    try:
+        v = float(t)
+    except Exception:
+        return None
+    return v if v > 0 else None
 
 
 def layer_id_of(name: str, module) -> str:
@@ -102,18 +120,23 @@ class TorchHookCollector(Collector):
     name = "torch_hooks"
     attribution = REGION
     capabilities = ("layer", "timestep", "macs", "spikes",
-                    "persistent_state", "domain", "label")
+                    "persistent_state", "membrane_histogram", "domain", "label")
 
     def __init__(self, emit_labels: bool = True, emit_nvtx: bool = False,
-                 cover_leaves: bool = False, sync_regions: bool = False):
+                 cover_leaves: bool = False, sync_regions: bool = False,
+                 membrane: bool = True):
         self.emit_labels = emit_labels
         self.cover_leaves = cover_leaves
         self.sync_regions = sync_regions
+        self.membrane = membrane
         self._cuda: bool | None = None
         self.emit_nvtx = emit_nvtx
         self._handles: list = []
         self._acc: dict[str, dict] = {}
         self._spikes: dict[str, list] = {}
+        self._hist: dict[str, list] = {}
+        self._theta: dict[str, float] = {}
+        self._mem_skip: dict[str, str] = {}
         self._regions: list[Region] = []
         self._open_labels: dict[str, list] = {}
         self._t0 = 0.0
@@ -144,7 +167,15 @@ class TorchHookCollector(Collector):
 
     # ---------------- hook 부착 ----------------
     def attach(self, model) -> None:
-        self._t0 = time.perf_counter()
+        for name, m in targets(model, self.cover_leaves):
+            lid = layer_id_of(name, m)
+            if self.membrane and is_snn(m):
+                theta = theta_of(m)
+                if theta is None:
+                    self._mem_skip[lid] = "threshold 속성을 읽지 못함"
+                else:
+                    self._theta[lid] = theta
+        self._t0 = time.perf_counter()        # θ를 다 읽은 뒤에 원점을 잡는다
         for name, m in targets(model, self.cover_leaves):
             lid = layer_id_of(name, m)
             self._handles.append(m.register_forward_pre_hook(self._pre(lid)))
@@ -257,11 +288,43 @@ class TorchHookCollector(Collector):
                     a["state_bytes"] = sum(int(t.numel() * t.element_size())
                                            for t in states)
                     a["state_tensors"] = len(states)
+                    # 막전위는 출력 튜플의 마지막 상태 텐서다. Leaky (spk, mem),
+                    # Synaptic (spk, syn, mem), Alpha (spk, syn_exc, syn_inh, mem).
+                    if self.membrane:
+                        self._bucket(lid, states[-1])
             if inst is not None:
                 self._close_label(inst)
         return post
 
+    def _bucket(self, lid: str, mem) -> None:
+        """막전위를 66칸 히스토그램으로 환산해 장치 위에 누적한다.
+
+        커널 2개(`bucketize`, `bincount`)로 끝나고 값을 호스트로 내리지 않으므로
+        호스트 동기화가 없다. 원 텐서는 보관하지 않는다 — 재려는 것이 메모리인데
+        계측이 스텝마다 그만큼 잡으면 측정 대상이 바뀐다.
+        """
+        import torch
+        theta = self._theta.get(lid)
+        if theta is None:
+            return
+        # 칸 폭이 일정하므로 경계 탐색 없이 나눗셈으로 칸을 정한다.
+        #   mem < 0 -> 0 | [0, θ) -> 1~64 | mem >= θ -> 65
+        # `bucketize`와 결과가 같으면서 원소당 이분 탐색이 사라진다. CPU에서
+        # 뉴런 1,000개 × batch 64 × T=10 기준으로 이 차이가 크다.
+        scale = MEM_IN_RANGE / theta
+        idx = (mem.detach().reshape(-1) * scale).floor_().add_(1).clamp_(
+            0, MEM_BINS - 1).to(torch.int64)
+        self._hist.setdefault(lid, []).append(
+            torch.bincount(idx, minlength=MEM_BINS))
+
     # ---------------- 통일 포맷으로 ----------------
+    def membrane_arrays(self) -> dict:
+        """`[T, 66]` 정수 배열. 측정이 끝난 뒤 한 번에 호스트로 내린다."""
+        import numpy as np
+        import torch
+        return {k: np.ascontiguousarray(torch.stack(v).cpu().numpy(), dtype=np.int64)
+                for k, v in self._hist.items() if v}
+
     def spike_arrays(self) -> dict:
         import numpy as np
         import torch
@@ -269,7 +332,9 @@ class TorchHookCollector(Collector):
                 for k, v in self._spikes.items() if v}
 
     def collect(self, trace: Trace, spike_dir: str = "", **kw: Any):
-        from ..observations import write_spike_observation
+        from ..observations import (write_membrane_observation,
+                                    write_spike_observation)
+        from ..steady import derive as steady_derive
 
         for lid, a in self._acc.items():
             a["spike_driven"] = looks_binary(a.pop("probe", None))
@@ -294,11 +359,25 @@ class TorchHookCollector(Collector):
                 trace.spikes.append(SpikeRef(
                     layer_id=o.layer_id, path=o.path, sha256=o.sha256,
                     timesteps=o.timesteps, batch=o.batch, neurons=o.neurons,
-                    metrics=o.metrics))
-        return self.declare("captured", layers=len(self._acc),
-                            regions=len(self._regions),
-                            registration="leaf-modules" if self.cover_leaves
-                                         else "mac-and-neuron",
-                            region_timing="gpu-synchronized" if self.sync_regions
-                                          else "cpu-launch-window",
-                            labels="record_function" if self.emit_labels else "none")
+                    metrics=o.metrics, steady_state=steady_derive(arr)))
+            for lid, counts in self.membrane_arrays().items():
+                o = write_membrane_observation(
+                    counts, out_dir=spike_dir, layer_id=lid,
+                    run_tag=f"T{trace.timesteps}",
+                    threshold=self._theta.get(lid), state_reset="subtract")
+                trace.membranes.append(MembraneRef(
+                    layer_id=o.layer_id, path=o.path, sha256=o.sha256,
+                    timesteps=o.timesteps, bins=o.bins,
+                    threshold=o.threshold, metrics=o.metrics))
+
+        detail: dict[str, Any] = dict(
+            layers=len(self._acc), regions=len(self._regions),
+            registration="leaf-modules" if self.cover_leaves else "mac-and-neuron",
+            region_timing="gpu-synchronized" if self.sync_regions
+                          else "cpu-launch-window",
+            labels="record_function" if self.emit_labels else "none",
+            membrane=("off" if not self.membrane else
+                      f"{len(self._hist)} 레이어" if self._hist else "산출 없음"))
+        if self._mem_skip:
+            detail["membrane_skipped"] = dict(self._mem_skip)
+        return self.declare("captured", **detail)

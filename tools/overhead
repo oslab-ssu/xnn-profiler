@@ -5,9 +5,10 @@
 hook 자체의 비용과 라벨 개시·종료 비용, 프로파일러 비용을 분리한다.
 
   base      계측 없음
-  hook      hook만 (라벨 없음)
+  hook      hook만 (라벨 없음, 막전위 분포 없음)
   label     hook + record_function 라벨 개시·종료
-  prof      hook + 라벨 + PyTorch Profiler 세션
+  mem       label + 막전위 분포 히스토그램 (뉴런 모듈 호출마다 커널 2개)
+  prof      mem + PyTorch Profiler 세션
 
   tools/overhead --model all --steps 10 --batch 64 --repeat 20
 """
@@ -74,8 +75,9 @@ def main() -> int:
         base, base_sd = timed(forward, args.repeat, dev)
         rows = [("base", base, base_sd)]
 
-        for tag, labels in (("hook", False), ("label", True)):
-            c = TorchHookCollector(emit_labels=labels)
+        for tag, labels, mem in (("hook", False, False), ("label", True, False),
+                                 ("mem", True, True)):
+            c = TorchHookCollector(emit_labels=labels, membrane=mem)
             c.attach(model)
             m, sd = timed(forward, args.repeat, dev)
             c.detach()
@@ -85,7 +87,7 @@ def main() -> int:
         acts = [ProfilerActivity.CPU] + ([ProfilerActivity.CUDA] if dev == "cuda" else [])
 
         def with_prof():
-            c = TorchHookCollector(emit_labels=True)
+            c = TorchHookCollector(emit_labels=True, membrane=True)
             c.attach(model)
             with tprofile(activities=acts, profile_memory=True, record_shapes=False):
                 forward()

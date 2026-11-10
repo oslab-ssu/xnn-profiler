@@ -42,22 +42,72 @@ def is_pseudo(key: str) -> bool:
     return key.startswith("[") or key.startswith(PSEUDO)
 
 
-def owner_of(ev) -> Optional[tuple[str, int]]:
-    """이벤트가 속한 통합 키. 부모를 거슬러 올라가 가장 가까운 라벨을 찾는다.
+def locate(ev):
+    """이벤트가 속한 통합 키와, 그 라벨까지의 깊이·라벨 이벤트.
 
-    계측 자신의 라벨에 먼저 닿으면 측정 대상이 아니므로 `INSTRUMENT`를 돌려준다.
+    부모를 거슬러 올라가 가장 가까운 라벨을 찾는다. 계측 자신의 라벨에 먼저
+    닿으면 측정 대상이 아니므로 `INSTRUMENT`를 돌려준다.
+
+    반환 `(key, depth, label_event)`. 깊이는 라벨에서 몇 단계 아래인지이며
+    라벨의 직계 자식이 1이다. 중첩 슬라이스를 그릴 때 쓴다.
     """
     cur, depth = ev, 0
     while cur is not None and depth < MAX_DEPTH:
         nm = str(cur.name)
         if nm == INSTRUMENT_LABEL:
-            return INSTRUMENT
+            return INSTRUMENT, depth, cur
         m = LABEL.match(nm)
         if m:
-            return m.group("layer"), int(m.group("step"))
+            return (m.group("layer"), int(m.group("step"))), depth, cur
         cur = getattr(cur, "cpu_parent", None)
         depth += 1
-    return None
+    return None, depth, None
+
+
+def owner_of(ev) -> Optional[tuple[str, int]]:
+    return locate(ev)[0]
+
+
+def _span(ev):
+    """이벤트의 `(시작, 길이)`를 µs로. 프로파일러 버전에 따라 속성이 다르다."""
+    tr = getattr(ev, "time_range", None) or getattr(ev, "cpu_interval", None)
+    if tr is None:
+        return None
+    try:
+        return float(tr.start), float(tr.end) - float(tr.start)
+    except Exception:
+        return None
+
+
+def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
+    """구간 안에 들어가도록 자르고, 깊은 단계부터 버려 개수를 맞춘다.
+
+    오프셋은 라벨 시작 시각 기준이므로 두 시계의 원점을 맞출 필요가 없다.
+    구간 길이는 `perf_counter`로, 오프셋은 프로파일러 시계로 재므로 끝에서
+    수 µs가 삐져나올 수 있다. 뷰어는 부모 밖으로 나가는 슬라이스를 거부하므로
+    구간 경계에서 자른다. 자른 몫은 `clamped`로 남긴다.
+    """
+    out = []
+    for c in sorted(calls, key=lambda c: (c["depth"], c["off_us"])):
+        off = max(0.0, min(c["off_us"], dur_us))
+        end = min(c["off_us"] + c["dur_us"], dur_us)
+        if end - off <= 0:
+            continue
+        item = {"name": c["name"], "depth": c["depth"],
+                "off_us": round(off, 3), "dur_us": round(end - off, 3)}
+        if end < c["off_us"] + c["dur_us"] - 1e-9:
+            item["clamped"] = True
+        out.append(item)
+    if len(out) <= cap:
+        return out
+    keep, total = [], 0                  # 깊이 단위로 끊는다 — 중간만 빠지면
+    for d in sorted({c["depth"] for c in out}):      # 중첩 관계가 깨진다
+        level = [c for c in out if c["depth"] == d]
+        if total + len(level) > cap:
+            break
+        keep += level
+        total += len(level)
+    return keep
 
 
 class TorchProfilerCollector(Collector):
@@ -65,8 +115,11 @@ class TorchProfilerCollector(Collector):
     attribution = REGION
     capabilities = ("op_time", "op_memory", "call_count", "label_join")
 
-    def __init__(self, prof=None):
+    def __init__(self, prof=None, op_tree: bool = True,
+                 op_tree_cap: int = 400):
         self.prof = prof
+        self.op_tree = op_tree
+        self.op_tree_cap = op_tree_cap
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -85,6 +138,7 @@ class TorchProfilerCollector(Collector):
 
         per_key: dict[tuple[str, int], dict[str, float]] = defaultdict(
             lambda: defaultdict(float))
+        tree: dict[tuple[str, int], list[dict]] = defaultdict(list)
         orphan: dict[str, float] = defaultdict(float)
         orphan_count = 0
         instrument: dict[str, float] = defaultdict(float)
@@ -93,10 +147,16 @@ class TorchProfilerCollector(Collector):
             op = str(ev.name)
             if is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL:
                 continue                             # 라벨 자체는 연산이 아니다
+            key, depth, label_ev = locate(ev)
+            if self.op_tree and key is not None and key != INSTRUMENT:
+                me, base = _span(ev), _span(label_ev)
+                if me and base:
+                    tree[key].append({"name": op, "depth": depth,
+                                      "off_us": me[0] - base[0],
+                                      "dur_us": me[1]})
             self_us = float(getattr(ev, "self_cpu_time_total", 0.0) or 0.0)
             if self_us <= 0:
                 continue
-            key = owner_of(ev)
             if key == INSTRUMENT:
                 instrument[op] += self_us
             elif key is None:
@@ -110,7 +170,7 @@ class TorchProfilerCollector(Collector):
         instrument_us = sum(instrument.values())
         total = attributed + unattributed          # 계측 비용은 모수에서 제외한다
 
-        matched = 0
+        matched, nested = 0, 0
         for (lid, step), ops in per_key.items():
             r = trace.region(lid, step)
             if r is None:
@@ -118,6 +178,12 @@ class TorchProfilerCollector(Collector):
             r.ops = {k: round(v, 3) for k, v in
                      sorted(ops.items(), key=lambda kv: -kv[1])}
             matched += 1
+        for (lid, step), calls in tree.items():
+            r = trace.region(lid, step)
+            if r is None:
+                continue
+            r.op_tree = nest(calls, r.dur_us, self.op_tree_cap)
+            nested += len(r.op_tree)
 
         top_orphan = sorted(orphan.items(), key=lambda kv: -kv[1])[:10]
         top_inst = sorted(instrument.items(), key=lambda kv: -kv[1])[:10]
@@ -139,4 +205,6 @@ class TorchProfilerCollector(Collector):
                                for k, v in ops.items() if k in SYNC_OPS), 3),
             instrument_us=round(instrument_us, 3),
             instrument_top=[{"op": k, "self_time_us": round(v, 3)}
-                            for k, v in top_inst])
+                            for k, v in top_inst],
+            op_tree_calls=nested if self.op_tree else 0,
+            op_tree="라벨 시작 시각 대비 상대 오프셋" if self.op_tree else "off")

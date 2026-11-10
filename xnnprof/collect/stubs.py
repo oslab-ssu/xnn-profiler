@@ -20,15 +20,6 @@ class PerfCollector(Unimplemented):
         return (True, "ok") if shutil.which("perf") else (False, "perf 미설치")
 
 
-class NsysCollector(Unimplemented):
-    name = "nsight_systems"
-    attribution = REGION
-    capabilities = ("cuda_api", "kernel_timeline", "nvtx_ranges")
-
-    def available(self):
-        return (True, "ok") if shutil.which("nsys") else (False, "nsys 미설치")
-
-
 class NcuCollector(Unimplemented):
     name = "nsight_compute"
     attribution = REGION
@@ -47,4 +38,4 @@ class MlirStaticCollector(Unimplemented):
         return False, "컴파일 산출물 경로 미지정 (.mlir / .ll)"
 
 
-ALL = (PerfCollector, NsysCollector, NcuCollector, MlirStaticCollector)
+ALL = (PerfCollector, NcuCollector, MlirStaticCollector)

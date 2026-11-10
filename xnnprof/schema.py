@@ -23,6 +23,10 @@ class Region:
     domain: str = DENSE
     parent_id: Optional[int] = None
     ops: dict[str, float] = field(default_factory=dict)   # op 이름 -> self time (us)
+    # 구간 안의 연산자 호출 계층. 라벨 시작 시각 대비 상대 오프셋이므로 시계
+    # 정합이 필요 없다. {name, depth, off_us, dur_us}
+    op_tree: list[dict[str, Any]] = field(default_factory=list)
+    gpu: dict[str, Any] = field(default_factory=dict)     # Nsight Systems 투영값
 
 
 @dataclass
@@ -50,6 +54,19 @@ class SpikeRef:
     fanout: Optional[int] = None
     fanout_from: str = ""
     synops: Optional[int] = None
+    metrics: dict[str, Any] = field(default_factory=dict)
+    steady_state: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MembraneRef:
+    """막전위 분포 관측 산출물 참조. `[T, 66]` 히스토그램 칸 개수."""
+    layer_id: str
+    path: str
+    sha256: str = ""
+    timesteps: int = 0
+    bins: int = 0
+    threshold: Optional[float] = None
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
@@ -88,6 +105,7 @@ class Trace:
     regions: list[Region] = field(default_factory=list)
     layers: list[Layer] = field(default_factory=list)
     spikes: list[SpikeRef] = field(default_factory=list)
+    membranes: list[MembraneRef] = field(default_factory=list)
     sources: list[Source] = field(default_factory=list)
     ir_levels: list[IrLevel] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
@@ -116,11 +134,16 @@ class Trace:
     def load(path: str) -> "Trace":
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
+        # 내보내는 파일은 Chrome Trace Event JSON 하나뿐이고, 우리 쪽 내용은
+        # 그 안의 확장 키 `xnn`에 들어 있다. 어느 쪽을 줘도 읽는다.
+        if "traceEvents" in d and isinstance(d.get("xnn"), dict):
+            d = d["xnn"]
         d.pop("schema", None), d.pop("version", None)
         return Trace(
             regions=[Region(**r) for r in d.pop("regions", [])],
             layers=[Layer(**l) for l in d.pop("layers", [])],
             spikes=[SpikeRef(**s) for s in d.pop("spikes", [])],
+            membranes=[MembraneRef(**m) for m in d.pop("membranes", [])],
             sources=[Source(**s) for s in d.pop("sources", [])],
             ir_levels=[IrLevel(**i) for i in d.pop("ir_levels", [])],
             **d)

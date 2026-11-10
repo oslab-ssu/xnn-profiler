@@ -50,6 +50,30 @@ def _snn_args(sp, timestep) -> dict[str, Any]:
         out["fanout_from"] = sp.fanout_from
     elif sp.fanout_from:
         out["synops"] = f"정의되지 않음 ({sp.fanout_from})"
+    ss = sp.steady_state or {}
+    if ss:
+        out["steady_state_step"] = ss.get("reached_step")
+        if ss.get("reached_step") is None and ss.get("reason"):
+            out["steady_state"] = f"미도달 ({ss['reason']})"
+        c = ss.get("c_t") or []
+        # c_t[i] 는 스텝 i+1 의 값이다. 스텝 0 에는 직전 스텝이 없다.
+        if timestep is not None and 1 <= timestep <= len(c):
+            out["pattern_change_c_t"] = c[timestep - 1]
+    return out
+
+
+def _mem_args(mb, timestep) -> dict[str, Any]:
+    """막전위 분포. 구간에는 그 스텝의 값만 싣고 전체 배열은 파일로 남긴다."""
+    m = mb.metrics or {}
+    out: dict[str, Any] = {"threshold": mb.threshold, "bins": mb.bins,
+                           "path": mb.path}
+    for key, src in (("near_threshold_fraction", "near_threshold_fraction"),
+                     ("at_or_above_threshold_fraction",
+                      "at_or_above_threshold_fraction"),
+                     ("below_zero_fraction", "below_zero_fraction")):
+        series = m.get(src) or []
+        if timestep is not None and timestep < len(series):
+            out[key] = series[timestep]
     return out
 
 
@@ -70,6 +94,7 @@ def _summary(trace: Trace) -> dict[str, Any]:
 def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
     tid = _tracks(trace)
     spikes = {sp.layer_id: sp for sp in trace.spikes}
+    membranes = {mb.layer_id: mb for mb in trace.membranes}
     ev: list[dict] = [{
         "ph": "M", "name": "process_name", "pid": pid, "tid": 0,
         "args": {"name": f"xnn {trace.model_id} T={trace.timesteps} batch={trace.batch}"},
@@ -97,6 +122,11 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
         sp = spikes.get(r.layer_id)
         if sp is not None:
             args["snn"] = _snn_args(sp, r.timestep)
+        mb = membranes.get(r.layer_id)
+        if mb is not None:
+            args["membrane"] = _mem_args(mb, r.timestep)
+        if r.gpu:
+            args["gpu"] = r.gpu
         if r.ops:
             args["ops_self_time_us"] = r.ops
             sync = sum(v for k, v in r.ops.items() if k in SYNC_OPS)
@@ -104,9 +134,19 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
                 args["host_sync_us"] = round(sync, 3)
                 args["host_sync_fraction"] = round(sync / r.dur_us, 4) if r.dur_us else None
         name = (f"{r.layer_id}@t{r.timestep}" if r.timestep is not None else r.layer_id)
+        t = tid.get(r.layer_id, 0)
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),
-                   "pid": pid, "tid": tid.get(r.layer_id, 0), "args": args})
+                   "pid": pid, "tid": t, "args": args})
+        # 구간 안의 연산자 호출 계층. 같은 트랙에 중첩 슬라이스로 쌓으면
+        # Flame Graph의 뿌리가 통합 키가 된다.
+        for c in r.op_tree:
+            ev.append({"ph": "X", "name": c["name"], "cat": "op",
+                       "ts": round(r.ts_us + c["off_us"], 3),
+                       "dur": round(c["dur_us"], 3),
+                       "pid": pid, "tid": t,
+                       "args": {"depth": c["depth"], "region": name,
+                                **({"clamped": True} if c.get("clamped") else {})}})
 
     # 모델 단위 측정값은 구간에 귀속되지 않으므로 마커 하나로 내보낸다.
     summary = _summary(trace)
@@ -128,7 +168,9 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
                        "ts": round(ts, 3), "pid": pid,
                        "args": {"rate": round(float(rate), 6)}})
 
-    ev.sort(key=lambda e: (e.get("ts", -1), 0 if e["ph"] == "M" else 1))
+    # 같은 시각이면 긴 슬라이스가 먼저 와야 중첩 관계가 유지된다.
+    ev.sort(key=lambda e: (e.get("ts", -1), 0 if e["ph"] == "M" else 1,
+                           -e.get("dur", 0)))
     return {
         "traceEvents": ev,
         "displayTimeUnit": "ms",

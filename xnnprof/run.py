@@ -8,6 +8,7 @@ import time
 from typing import Any, Optional
 
 from .collect.base import Collector
+from .collect.nsys import NsysCollector
 from .collect.stubs import ALL as STUB_COLLECTORS
 from .collect.torch_hooks import TorchHookCollector
 from .collect.torch_prof import TorchProfilerCollector
@@ -40,7 +41,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             batch: Optional[int] = None, out_dir: str = "out",
             with_torch_profiler: bool = True, device: str = "cpu",
             emit_nvtx: bool = False, cover_leaves: bool = False,
-            sync_regions: bool = False,
+            sync_regions: bool = False, membrane: bool = True,
+            op_tree: bool = True,
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
     """측정 1회.
 
@@ -65,7 +67,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     model = model.to(device)
     hooks = TorchHookCollector(emit_nvtx=emit_nvtx or cuda,
                                cover_leaves=cover_leaves,
-                               sync_regions=sync_regions and cuda)
+                               sync_regions=sync_regions and cuda,
+                               membrane=membrane)
     ok, why = hooks.available()
     if not ok:
         trace.sources.append(hooks.declare("unavailable", why))
@@ -98,9 +101,15 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     hooks.detach()
 
     trace.sources.append(hooks.collect(trace, spike_dir=os.path.join(out_dir, "spikes")))
-    trace.sources.append(TorchProfilerCollector(prof).collect(trace))
+    trace.sources.append(TorchProfilerCollector(prof, op_tree=op_tree).collect(trace))
+    named = {type(c).name for c in extra}
+    if NsysCollector.name not in named:
+        # 리포트는 프로세스가 끝난 뒤에 쓰이므로 측정과 같은 실행에서는 비어 있다.
+        # 병합은 tools/nsys_merge 가 따로 수행한다.
+        trace.sources.append(NsysCollector().collect(trace))
     for cls in STUB_COLLECTORS:
-        trace.sources.append(cls().collect(trace))
+        if cls.name not in named:
+            trace.sources.append(cls().collect(trace))
     for c in extra:
         trace.sources.append(c.collect(trace))
 
