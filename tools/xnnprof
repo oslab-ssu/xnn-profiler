@@ -21,6 +21,12 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
+# 출력이 파이프로 가면 Windows에서 인코딩이 cp949로 떨어져 한글·기호에서
+# UnicodeEncodeError가 난다 (nsys profile 아래에서 실행할 때). UTF-8로 고정한다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 from xnnprof.emit import trace_json                 # noqa: E402
 from xnnprof.weights import load_or_train           # noqa: E402
 from xnnprof.models import REGISTRY, build          # noqa: E402
@@ -93,6 +99,13 @@ def main() -> int:
                     help="막전위 분포를 산출하지 않는다. 뉴런 모듈 호출마다 "
                          "히스토그램 커널 2개가 추가되므로, 계측 비용을 "
                          "비교할 때 끈다")
+    ap.add_argument("--no-full-trace", action="store_true",
+                    help="실행 전체의 연산 계층을 얹지 않는다. 등록된 구간 밖에서 "
+                         "무엇이 돌았는지가 빠지고 파일이 작아진다")
+    ap.add_argument("--with-stack", action="store_true",
+                    help="파이썬 호출 스택까지 기록한다. 실행 전체 트랙의 깊이가 "
+                         "6에서 20단계 이상으로 늘고 파일이 3~4배가 된다. "
+                         "계측 비용도 함께 늘므로 시간을 볼 때는 끈다")
     ap.add_argument("--no-op-tree", action="store_true",
                     help="구간 안의 연산자 호출 계층을 내보내지 않는다. "
                          "중첩 슬라이스가 빠지면 Flame Graph가 그려지지 않는다")
@@ -136,6 +149,8 @@ def main() -> int:
                         sync_regions=args.sync_regions,
                         membrane=not args.no_membrane,
                         op_tree=not args.no_op_tree,
+                        full_trace=not args.no_full_trace,
+                        with_stack=args.with_stack,
                         with_torch_profiler=not args.no_torch_profiler, **fkw)
         trace.env["weights"] = origin
         trace.env["weights_sha256"] = digest
@@ -143,7 +158,8 @@ def main() -> int:
         with torch.no_grad():
             acc = (model(xb, **fkw).argmax(1) == yb).float().mean().item()
         trace.env["batch_accuracy"] = round(acc, 4)
-        trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"))
+        trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"),
+                         full=getattr(trace, "_full", None))
         print("=" * 76)
         print(summary(trace))
         print(f"\n-> {out_dir}/xnn-trace.json  "

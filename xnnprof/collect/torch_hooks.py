@@ -314,8 +314,17 @@ class TorchHookCollector(Collector):
         scale = MEM_IN_RANGE / theta
         idx = (mem.detach().reshape(-1) * scale).floor_().add_(1).clamp_(
             0, MEM_BINS - 1).to(torch.int64)
-        self._hist.setdefault(lid, []).append(
-            torch.bincount(idx, minlength=MEM_BINS))
+        # 칸을 세는 방법을 장치에 따라 바꾼다. 두 경로의 결과는 같다(체크섬 대조).
+        #   CUDA  `bincount`는 출력 크기를 정하려고 입력의 min·max를 호스트로
+        #         꺼내므로(aten::_local_scalar_dense) 호출마다 GPU 전체 동기화가
+        #         걸린다. 칸 수가 고정이니 출력을 미리 잡고 더해 왕복을 없앤다
+        #   CPU   동기화라는 개념이 없고 `bincount`가 scatter_add_보다 빠르다
+        if idx.is_cuda:
+            out = torch.zeros(MEM_BINS, dtype=torch.int64, device=idx.device)
+            out.scatter_add_(0, idx, torch.ones_like(idx))
+        else:
+            out = torch.bincount(idx, minlength=MEM_BINS)
+        self._hist.setdefault(lid, []).append(out)
 
     # ---------------- 통일 포맷으로 ----------------
     def membrane_arrays(self) -> dict:

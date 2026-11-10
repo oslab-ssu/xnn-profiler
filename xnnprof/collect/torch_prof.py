@@ -27,6 +27,7 @@ from .torch_hooks import INSTRUMENT_LABEL
 
 LABEL = re.compile(r"^(?P<layer>.+)@t(?P<step>\d+)$")
 PSEUDO = ("ProfilerStep",)
+PYFRAME = re.compile(r"^.+\(\d+\): .+$")      # torch/nn/modules/module.py(1736): _call_impl
 MAX_DEPTH = 64
 INSTRUMENT = ("__instrument__", -1)
 
@@ -40,6 +41,16 @@ SYNC_OPS = frozenset({
 
 def is_pseudo(key: str) -> bool:
     return key.startswith("[") or key.startswith(PSEUDO)
+
+
+def is_python_frame(key: str) -> bool:
+    """`with_stack`으로 켜지는 파이썬 추적 이벤트.
+
+    귀속 집계와 `op_tree`에서 모두 뺀다. 넣으면 같은 측정의 귀속률이 플래그
+    하나로 달라져 실행 간 비교가 깨진다. 파이썬 프레임까지 보려면 실행 전체
+    트랙(`emit/full_trace.py`)에 프로파일러 export가 그대로 얹혀 있다.
+    """
+    return key.startswith("<") or PYFRAME.match(key) is not None
 
 
 def locate(ev):
@@ -145,7 +156,8 @@ class TorchProfilerCollector(Collector):
 
         for ev in events:
             op = str(ev.name)
-            if is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL:
+            if (is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL
+                    or is_python_frame(op)):
                 continue                             # 라벨 자체는 연산이 아니다
             key, depth, label_ev = locate(ev)
             if self.op_tree and key is not None and key != INSTRUMENT:

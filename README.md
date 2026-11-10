@@ -36,7 +36,9 @@ tools/xnnprof --model fcsnn --device cuda --weights weights --out out-gpu
 | `--no-torch-profiler` | off | hook만으로 측정. 레이어별 시간을 보거나 nsys로 쌀 때 켬 |
 | `--sync-regions` | off | GPU 구간 경계마다 동기화해 레이어별 실제 GPU 시간을 잼 |
 | `--cover-leaves` | off | 자식이 없는 모든 모듈까지 계측 지점을 삽입 |
-| `--no-membrane` | off | 막전위 분포를 산출하지 않음. 뉴런 모듈 호출마다 커널 2개가 추가되므로 계측 비용을 비교할 때 켬 |
+| `--no-membrane` | off | 막전위 분포를 산출하지 않음. 호스트 동기화 비중을 잴 때는 켜야 함(아래 주의) |
+| `--no-full-trace` | off | 실행 전체의 연산 계층을 얹지 않음. 등록된 구간 밖에서 무엇이 돌았는지가 빠짐 |
+| `--with-stack` | off | 파이썬 호출 스택까지 기록. 실행 전체 트랙 깊이가 6 → 19로 늘고 파일이 3배, 실행은 2.5~3.4배 느려짐 |
 | `--no-op-tree` | off | 구간 안의 연산자 호출 계층을 내보내지 않음. 빼면 Flame Graph가 그려지지 않음 |
 
 ### 장치를 바꿔 가며 같은 모델을 측정할 때
@@ -50,6 +52,12 @@ tools/xnnprof --model all --device cuda --weights weights --out out-gpu   # 불�
 
 `state_dict`의 sha256이 결과 파일 `env.weights_sha256`에 기록됨.
 
+### 호스트 동기화를 잴 때는 --no-membrane
+
+막전위 히스토그램은 계측 라벨 안에서 돌지만, 스텝마다 GPU 큐를 건드려 **다음 구간에서
+snntorch가 기다리는 시간을 바꿈**. 같은 모델의 `lif1` 동기화 비중이 막전위를 켜면 37.4%,
+끄면 그보다 높게 나옴. 구간 시간이나 동기화 비중을 보고할 때는 끄고 잼.
+
 ### nsys로 쌀 때
 
 이중 계측을 피하려면 PyTorch Profiler를 끔. 경로에 한글이 있으면 nsys가 실패하므로 ASCII 경로에서 실행함.
@@ -59,6 +67,15 @@ nsys profile -t cuda,nvtx -o out/fcsnn/nsys --force-overwrite true \
     python tools/xnnprof --model fcsnn --device cuda --no-torch-profiler
 tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 ```
+
+Windows 설치본은 `nsys`가 PATH에 없음. Nsight **Compute**에 딸려 오는 동명의 바이너리는
+리포트를 만들지 못하므로 Nsight **Systems** 쪽 경로를 써야 함.
+
+```
+set NSYS=C:\Program Files\NVIDIA Corporation\Nsight Systems 2026.5.1\target-windows-x64\nsys.exe
+```
+
+`tools/nsys_merge`가 `nsys export`를 부를 때 이 값을 봄. PATH에 올려도 됨.
 
 리포트는 프로세스가 끝난 뒤에 쓰이므로 측정과 같은 실행에서는 병합할 수 없음.
 `tools/nsys_merge`가 2단계로 병합함.
@@ -98,6 +115,7 @@ GPU에서 값을 내리느라 호스트 동기화가 걸려 계측이 실행 순
 | `args.membrane` | 스파이크 레이어만. θ · 그 스텝의 임계 근처 비율 |
 | `args.gpu` | `tools/nsys_merge`로 병합한 뒤에만. 구간별 GPU 커널 시간 · 커널 수 · 상위 커널 |
 | 중첩 슬라이스 | 구간 아래에 연산자 호출 계층이 쌓임. Flame Graph의 뿌리가 통합 키가 됨 |
+| `실행 전체` 프로세스 | 등록된 구간 밖까지 포함한 전체 연산 계층. 레이어 트랙과 섞이지 않게 별도 프로세스에 둠 |
 | `xnn 요약` 마커 | 모델 단위 값. 출력 발생 지연 · 상태 메모리 · 귀속률 · 가중치 지문 |
 | 최상위 `xnn` 키 | 구간 전체 · 레이어 집계 · 스파이크 참조 · 수집기별 출처. 뷰어는 읽지 않음 |
 
@@ -137,18 +155,21 @@ tools/overhead --model all --device cuda --repeat 60
 | `--repeat` | `20` |
 | `--device` | `cpu` |
 
-조건은 `base`(계측 없음) · `hook` · `label` · `mem`(막전위 분포) · `prof`임.
-CPU · batch 64 · T=10 · repeat 20 기준 실측값.
+조건은 `base`(계측 없음) · `hook` · `label` · `mem`(막전위 분포) · `prof` · `stack`(`--with-stack`)임.
+GPU(RTX 2060 SUPER) · batch 64 · T=10 · repeat 200 기준 실측값.
 
-| 모델 | base | hook | label | mem | prof |
-| --- | --- | --- | --- | --- | --- |
-| `fcsnn` | 19.1 ms | 1.06x | 1.10x | **1.43x** | 1.97x |
-| `mnist_mlp` | 1.0 ms | 1.07x | 1.62x | 1.61x | 3.23x |
-| `repeated_dnn_snn` | 7.3 ms | 1.17x | 1.43x | **1.54x** | 2.61x |
+| 모델 | base | hook | label | mem | prof | stack |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fcsnn` | 13.4 ms | 1.11x | 1.28x | **1.46x** | 3.68x | **11.05x** |
+| `mnist_mlp` | 0.19 ms | 1.09x | 1.37x | 1.34x | 7.17x | 17.80x |
+| `repeated_dnn_snn` | 5.97 ms | 1.09x | 1.41x | **1.80x** | 4.96x | **17.06x** |
 
-막전위 분포가 `fcsnn`에서 1.10x -> 1.43x로 늘어남. 뉴런 1,000개 × batch 64 × T=10을
-단일 스레드에서 칸으로 나누는 비용임. 계측 비용은 `xnn::instrument` 라벨 안에
-들어가므로 구간 시간에는 섞이지 않지만, 전체 실행 시간은 이만큼 늘어남.
+막전위 분포는 label 대비 `fcsnn` +14%, `repeated_dnn_snn` +28%임. 칸을 세는 데
+`torch.bincount`를 쓰면 CUDA 구현이 출력 크기를 정하려고 입력 min·max를 호스트로 꺼내
+호출마다 GPU 전체 동기화가 걸림. `scatter_add_`로 바꾼 뒤의 값이고, 바꾸기 전에는
+각각 +55% / +106%였음.
+
+파이썬 스택은 prof 대비 2.5~3.4배임. 구조를 볼 때만 켬.
 
 ## tools/coverage — 계측 지점 누락
 

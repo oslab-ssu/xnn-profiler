@@ -47,6 +47,18 @@ GROUP BY n.text, s.value
 TOTAL_KERNEL = "SELECT SUM(end - start), COUNT(*) FROM CUPTI_ACTIVITY_KIND_KERNEL"
 
 
+def nsys_bin() -> str:
+    """`nsys` 실행 파일. PATH에 없으면 환경변수 `NSYS`로 지정한다.
+
+    Windows 설치본은 PATH에 등록되지 않고, Nsight Compute에 딸려 오는 동명의
+    바이너리는 리포트를 만들지 못한다. 경로를 직접 줄 수단이 필요하다.
+    """
+    env = os.environ.get("NSYS", "").strip('"')
+    if env and os.path.exists(env):
+        return env
+    return shutil.which("nsys") or ""
+
+
 def sqlite_for(report: str, export: bool = True) -> tuple[str, str]:
     """리포트에 대응하는 `.sqlite` 경로. 없으면 `nsys export`로 만든다."""
     if report.endswith(".sqlite"):
@@ -58,9 +70,10 @@ def sqlite_for(report: str, export: bool = True) -> tuple[str, str]:
         return db, ""
     if not export:
         return "", f"{db} 없음 (export 생략)"
-    nsys = shutil.which("nsys")
+    nsys = nsys_bin()
     if not nsys:
-        return "", f"{db} 가 없고 nsys 도 없어 export 불가"
+        return "", (f"{db} 가 없고 nsys 도 찾지 못해 export 불가 — "
+                    "PATH에 넣거나 환경변수 NSYS로 경로를 준다")
     cmd = [nsys, "export", "--type", "sqlite", "--force-overwrite", "true",
            "-o", db, report]
     try:
@@ -88,7 +101,7 @@ class NsysCollector(Collector):
         db, why = sqlite_for(self.report, export=False)
         if db:
             return True, "ok"
-        if shutil.which("nsys"):
+        if nsys_bin():
             return True, "ok (export 필요)"
         return False, why
 

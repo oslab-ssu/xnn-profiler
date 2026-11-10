@@ -42,7 +42,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             with_torch_profiler: bool = True, device: str = "cpu",
             emit_nvtx: bool = False, cover_leaves: bool = False,
             sync_regions: bool = False, membrane: bool = True,
-            op_tree: bool = True,
+            op_tree: bool = True, full_trace: bool = True,
+            with_stack: bool = False,
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
     """측정 1회.
 
@@ -88,7 +89,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
         from torch.profiler import ProfilerActivity, profile as tprofile
         acts = [ProfilerActivity.CPU] + ([ProfilerActivity.CUDA] if cuda else [])
         with tprofile(activities=acts, profile_memory=True,
-                      record_shapes=False) as prof:
+                      record_shapes=False, with_stack=with_stack) as prof:
             with torch.no_grad():
                 model(*args, **forward_kw)
             if cuda:
@@ -115,5 +116,24 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
 
     annotate_synops(trace)
     trace.metrics = snn_metrics(trace)
-    trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"))
+
+    # 실행 전체의 연산 계층. 프로파일러 export를 임시로 떠서 얹고 지운다 —
+    # 내보내는 파일은 Chrome Trace Event JSON 하나뿐이다.
+    full: list[dict] = []
+    if full_trace and prof is not None:
+        from .emit.full_trace import events_for
+        tmp = os.path.join(out_dir, ".torch-chrome.json")
+        try:
+            prof.export_chrome_trace(tmp)
+            full, detail = events_for(trace, tmp)
+        except Exception as e:                               # noqa: BLE001
+            full, detail = [], {"reason": f"{type(e).__name__}: {e}"}
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
+        if src is not None:
+            src.detail["full_trace"] = detail
+    trace._full = full                       # tools 쪽 재기록에서 다시 쓴다
+    trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"), full=full)
     return trace

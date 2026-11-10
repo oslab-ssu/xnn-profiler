@@ -9,6 +9,7 @@ hook 자체의 비용과 라벨 개시·종료 비용, 프로파일러 비용을
   label     hook + record_function 라벨 개시·종료
   mem       label + 막전위 분포 히스토그램 (뉴런 모듈 호출마다 커널 2개)
   prof      mem + PyTorch Profiler 세션
+  stack     prof + 파이썬 호출 스택 기록 (--with-stack)
 
   tools/overhead --model all --steps 10 --batch 64 --repeat 20
 """
@@ -22,6 +23,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 출력이 파이프로 가면 Windows에서 인코딩이 cp949로 떨어져 한글·기호에서
+# UnicodeEncodeError가 난다 (nsys profile 아래에서 실행할 때). UTF-8로 고정한다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 
 from xnnprof.collect.torch_hooks import TorchHookCollector   # noqa: E402
 from xnnprof.models import REGISTRY, build                   # noqa: E402
@@ -86,15 +93,19 @@ def main() -> int:
         from torch.profiler import ProfilerActivity, profile as tprofile
         acts = [ProfilerActivity.CPU] + ([ProfilerActivity.CUDA] if dev == "cuda" else [])
 
-        def with_prof():
-            c = TorchHookCollector(emit_labels=True, membrane=True)
-            c.attach(model)
-            with tprofile(activities=acts, profile_memory=True, record_shapes=False):
-                forward()
-            c.detach()
+        def with_prof(stack=False):
+            def run():
+                c = TorchHookCollector(emit_labels=True, membrane=True)
+                c.attach(model)
+                with tprofile(activities=acts, profile_memory=True,
+                              record_shapes=False, with_stack=stack):
+                    forward()
+                c.detach()
+            return run
 
-        m, sd = timed(with_prof, args.repeat, dev)
-        rows.append(("prof", m, sd))
+        for tag, stack in (("prof", False), ("stack", True)):
+            m, sd = timed(with_prof(stack), args.repeat, dev)
+            rows.append((tag, m, sd))
 
         for tag, m, sd in rows:
             ratio = "—" if tag == "base" else f"{m / base:>9.2f}x"

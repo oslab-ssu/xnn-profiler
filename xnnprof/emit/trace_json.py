@@ -91,7 +91,8 @@ def _summary(trace: Trace) -> dict[str, Any]:
     return out
 
 
-def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
+def build(trace: Trace, pid: int = 1,
+          full: list[dict] | None = None) -> dict[str, Any]:
     tid = _tracks(trace)
     spikes = {sp.layer_id: sp for sp in trace.spikes}
     membranes = {mb.layer_id: mb for mb in trace.membranes}
@@ -168,6 +169,10 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
                        "ts": round(ts, 3), "pid": pid,
                        "args": {"rate": round(float(rate), 6)}})
 
+    # 실행 전체의 연산 계층. 별도 pid라 레이어 트랙과 섞이지 않는다.
+    if full:
+        ev.extend(full)
+
     # 같은 시각이면 긴 슬라이스가 먼저 와야 중첩 관계가 유지된다.
     ev.sort(key=lambda e: (e.get("ts", -1), 0 if e["ph"] == "M" else 1,
                            -e.get("dur", 0)))
@@ -179,7 +184,8 @@ def build(trace: Trace, pid: int = 1) -> dict[str, Any]:
     }
 
 
-def write(trace: Trace, path: str, pid: int = 1) -> str:
+def write(trace: Trace, path: str, pid: int = 1,
+          full: list[dict] | None = None) -> str:
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(build(trace, pid), f, ensure_ascii=False, indent=2)
+        json.dump(build(trace, pid, full), f, ensure_ascii=False, indent=2)
     return path

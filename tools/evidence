@@ -17,6 +17,11 @@ import json
 import os
 import sys
 
+# 출력이 파이프로 가면 Windows에서 인코딩이 cp949로 떨어져 한글·기호에서
+# UnicodeEncodeError가 난다 (nsys profile 아래에서 실행할 때). UTF-8로 고정한다.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 SYNC_OPS = frozenset({
     "aten::item", "aten::_local_scalar_dense", "aten::is_nonzero",
     "aten::nonzero", "aten::equal", "aten::allclose", "aten::_assert_async",
