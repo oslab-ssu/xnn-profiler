@@ -38,6 +38,7 @@ tools/xnnprof --model fcsnn --device cuda --weights weights --out out-gpu
 | `--cover-leaves` | off | 자식이 없는 모든 모듈까지 계측 지점을 삽입 |
 | `--no-membrane` | off | 막전위 분포를 산출하지 않음. 호스트 동기화 비중을 잴 때는 켜야 함(아래 주의) |
 | `--no-full-trace` | off | 실행 전체의 연산 계층을 얹지 않음. 등록된 구간 밖에서 무엇이 돌았는지가 빠짐 |
+| `--nsys` | off | 측정을 `nsys profile`로 감싸고 끝난 뒤 리포트를 구간에 병합. 한 명령으로 끝남 |
 | `--with-stack` | off | 파이썬 호출 스택까지 기록. 실행 전체 트랙 깊이가 6 → 19로 늘고 파일이 3배, 실행은 2.5~3.4배 느려짐 |
 | `--no-op-tree` | off | 구간 안의 연산자 호출 계층을 내보내지 않음. 빼면 Flame Graph가 그려지지 않음 |
 
@@ -62,11 +63,29 @@ snntorch가 기다리는 시간을 바꿈**. 같은 모델의 `lif1` 동기화 �
 
 이중 계측을 피하려면 PyTorch Profiler를 끔. 경로에 한글이 있으면 nsys가 실패하므로 ASCII 경로에서 실행함.
 
+한 명령으로 끝내려면 `--nsys`를 줌.
+
+```
+tools/xnnprof --model fcsnn --device cuda --nsys --out out
+```
+
+자기 자신을 `nsys profile`로 다시 띄우고, 자식이 끝나 리포트가 생긴 뒤에 병합함.
+리포트는 감싼 프로세스가 종료된 뒤에 쓰이므로 측정하는 쪽이 자기 리포트를 읽는 것은
+원리적으로 불가능하고, 그래서 바깥에 한 겹을 둠. 결과는 파일 하나에 구간별 GPU 커널
+시간·연산자 호출 계층·실행 전체 트랙이 모두 들어감.
+
+NVTX 범위 이름이 모델 사이에서 겹치므로(`lif1@t0` 등) `--model all`과는 같이 못 씀.
+
+나눠서 해도 됨.
+
 ```
 nsys profile -t cuda,nvtx -o out/fcsnn/nsys --force-overwrite true \
-    python tools/xnnprof --model fcsnn --device cuda --no-torch-profiler
+    python tools/xnnprof --model fcsnn --device cuda --out out
 tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 ```
+
+`--no-torch-profiler`를 같이 주면 이중 계측이 빠져 시간이 정확해지는 대신 연산자
+호출 계층과 실행 전체 트랙이 안 들어감.
 
 Windows 설치본은 `nsys`가 PATH에 없음. Nsight **Compute**에 딸려 오는 동명의 바이너리는
 리포트를 만들지 못하므로 Nsight **Systems** 쪽 경로를 써야 함.

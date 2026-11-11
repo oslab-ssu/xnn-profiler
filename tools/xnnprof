@@ -5,11 +5,17 @@
   tools/xnnprof --model all --steps 10 --batch 64 --train 6000
   tools/xnnprof --model all --data ../profiler-verification/data
 
-GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems로 묶으려면
+GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems까지 한 번에 묶으려면
 
-  nsys profile -t cuda,nvtx,osrt -o out/fcsnn/nsys \
-      python tools/xnnprof --model fcsnn --device cuda --train 0 \
-      --no-torch-profiler
+  tools/xnnprof --model fcsnn --device cuda --nsys
+
+측정과 병합을 두 명령으로 나눠도 된다. 리포트는 프로세스가 끝난 뒤에 쓰이므로
+측정하는 자기 자신은 그 파일을 읽을 수 없다 — `--nsys`는 그래서 자기를 nsys로
+다시 띄우고, 자식이 끝나 리포트가 생긴 뒤에 병합한다.
+
+  nsys profile -t cuda,nvtx -o out/fcsnn/nsys \
+      python tools/xnnprof --model fcsnn --device cuda --out out
+  tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 """
 
 from __future__ import annotations
@@ -32,6 +38,75 @@ from xnnprof.weights import load_or_train           # noqa: E402
 from xnnprof.models import REGISTRY, build          # noqa: E402
 from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
+
+
+REENTRY = "XNN_UNDER_NSYS"      # 자식에게 '이미 nsys 아래'라고 알리는 표시
+
+
+def run_under_nsys(args, argv: list[str]) -> int:
+    """자기 자신을 `nsys profile`로 다시 띄우고, 끝난 뒤 리포트를 병합한다.
+
+    리포트는 감싼 프로세스가 종료된 뒤에 쓰인다. 측정하는 쪽이 자기 리포트를
+    읽는 것은 원리적으로 불가능하므로, 바깥에 한 겹을 두고 자식이 끝난 다음에
+    병합한다. 사용자에게는 한 명령이다.
+    """
+    import subprocess
+    from xnnprof.collect.nsys import NsysCollector, nsys_bin
+    from xnnprof.emit import trace_json
+    from xnnprof.emit.full_trace import extract
+    from xnnprof.schema import Trace
+
+    if args.model == "all":
+        print("--nsys 는 모델 하나에만 쓴다. NVTX 범위 이름이 모델 사이에서 "
+              "겹쳐(lif1@t0 등) 어느 모델의 커널인지 구분되지 않는다.",
+              file=sys.stderr)
+        return 1
+    nsys = nsys_bin()
+    if not nsys:
+        print("nsys 를 찾지 못했다. PATH에 넣거나 환경변수 NSYS로 경로를 준다.\n"
+              "  Nsight Compute 에 딸려 오는 동명의 바이너리는 리포트를 만들지 "
+              "못하므로 Nsight Systems 쪽 경로를 써야 한다.", file=sys.stderr)
+        return 1
+
+    out_dir = os.path.join(args.out, args.model)
+    os.makedirs(out_dir, exist_ok=True)
+    report = os.path.join(out_dir, "nsys")
+    if not os.path.abspath(report).isascii():
+        print(f"경고: 경로에 ASCII 가 아닌 문자가 있다 — nsys 가 실패할 수 있다.\n"
+              f"  {os.path.abspath(report)}\n"
+              f"  Windows 라면 subst 로 ASCII 드라이브를 만들어 거기서 실행한다.",
+              file=sys.stderr)
+
+    child = [a for a in argv if a != "--nsys"]
+    cmd = [nsys, "profile", "-t", "cuda,nvtx", "-o", report,
+           "--force-overwrite", "true",
+           sys.executable, os.path.abspath(__file__)] + child
+    print(f"[1/2] nsys profile -> {report}.nsys-rep")
+    rc = subprocess.run(cmd, env=dict(os.environ, **{REENTRY: "1"})).returncode
+    if rc != 0:
+        print(f"측정이 0이 아닌 값으로 끝났다 (rc={rc})", file=sys.stderr)
+
+    trace_path = os.path.join(out_dir, "xnn-trace.json")
+    rep = report + ".nsys-rep"
+    if not os.path.exists(trace_path) or not os.path.exists(rep):
+        print(f"병합할 수 없다 — 트레이스 {os.path.exists(trace_path)}, "
+              f"리포트 {os.path.exists(rep)}", file=sys.stderr)
+        return 1
+
+    print(f"\n[2/2] 병합 {rep}")
+    trace = Trace.load(trace_path)
+    full = extract(trace_path)          # 실행 전체 트랙은 xnn 키에 없다
+    src = NsysCollector(rep).collect(trace)
+    trace.sources = [s for s in trace.sources if s.collector != src.collector]
+    trace.sources.append(src)
+    trace_json.write(trace, trace_path, full=full)
+    d = src.detail or {}
+    print(f"  {src.status}  NVTX 범위 {d.get('nvtx_ranges')}개 / 구간 "
+          f"{d.get('matched_regions')}개에 병합  "
+          f"범위 안 커널 {d.get('kernel_us_in_ranges', 0):,.1f}us "
+          f"({d.get('in_range_fraction', 0):.1%})")
+    print(f"\n-> {trace_path}")
+    return 0 if src.status in ("captured", "partial") else 1
 
 
 def default_data() -> str:
@@ -102,6 +177,9 @@ def main() -> int:
     ap.add_argument("--no-full-trace", action="store_true",
                     help="실행 전체의 연산 계층을 얹지 않는다. 등록된 구간 밖에서 "
                          "무엇이 돌았는지가 빠지고 파일이 작아진다")
+    ap.add_argument("--nsys", action="store_true",
+                    help="측정을 nsys profile 로 감싸고 끝난 뒤 리포트를 구간에 "
+                         "병합한다. 한 명령으로 끝남. 모델 하나에만 쓸 수 있음")
     ap.add_argument("--with-stack", action="store_true",
                     help="파이썬 호출 스택까지 기록한다. 실행 전체 트랙의 깊이가 "
                          "6에서 20단계 이상으로 늘고 파일이 3~4배가 된다. "
@@ -110,6 +188,9 @@ def main() -> int:
                     help="구간 안의 연산자 호출 계층을 내보내지 않는다. "
                          "중첩 슬라이스가 빠지면 Flame Graph가 그려지지 않는다")
     args = ap.parse_args()
+
+    if args.nsys and not os.environ.get(REENTRY):
+        return run_under_nsys(args, sys.argv[1:])
 
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
     dev = args.device

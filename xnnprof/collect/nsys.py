@@ -66,10 +66,13 @@ def sqlite_for(report: str, export: bool = True) -> tuple[str, str]:
     if not os.path.exists(report):
         return "", f"{report} 없음"
     db = os.path.splitext(report)[0] + ".sqlite"
-    if os.path.exists(db):
+    # 리포트를 다시 떴는데 옛 sqlite 가 남아 있으면 지난 측정을 병합하게 된다.
+    # 조용히 틀린 수치가 나오므로 더 오래된 db 는 다시 내보낸다.
+    if os.path.exists(db) and os.path.getmtime(db) >= os.path.getmtime(report):
         return db, ""
     if not export:
-        return "", f"{db} 없음 (export 생략)"
+        stale = "리포트보다 오래됨" if os.path.exists(db) else "없음"
+        return "", f"{db} {stale} (export 생략)"
     nsys = nsys_bin()
     if not nsys:
         return "", (f"{db} 가 없고 nsys 도 찾지 못해 export 불가 — "

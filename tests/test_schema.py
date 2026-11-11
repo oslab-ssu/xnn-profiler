@@ -238,10 +238,42 @@ def test_nsys_projection():
     print("  NVTX GPU 투영 OK")
 
 
+def test_nsys_stale_sqlite():
+    """리포트를 다시 떴는데 옛 sqlite 가 남아 있으면 다시 내보내야 한다."""
+    import os
+    import tempfile
+    import time
+    from xnnprof.collect.nsys import sqlite_for
+
+    d = tempfile.mkdtemp()
+    rep, db = os.path.join(d, "r.nsys-rep"), os.path.join(d, "r.sqlite")
+    open(db, "w").write("old")
+    time.sleep(0.02)
+    open(rep, "w").write("new")
+    got, why = sqlite_for(rep, export=False)
+    assert got == "" and "오래됨" in why, (got, why)
+    os.utime(db, None)                       # db 를 최신으로
+    got, why = sqlite_for(rep, export=False)
+    assert got == db, (got, why)
+    print("  nsys 리포트·sqlite 선후 판정 OK")
+
+
+def test_op_tree_cap_keeps_first_level():
+    """상한이 첫 단계보다 작아도 구간이 비면 안 된다."""
+    from xnnprof.collect.torch_prof import nest
+    calls = [{"name": f"op{i}", "depth": 1, "off_us": float(i), "dur_us": 1.0}
+             for i in range(5)]
+    calls.append({"name": "deep", "depth": 2, "off_us": 0.1, "dur_us": 0.5})
+    out = nest(calls, dur_us=100.0, cap=2)
+    assert out and {c["depth"] for c in out} == {1}, out
+    print("  op_tree 상한 처리 OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
                test_trace_event_format, test_roundtrip, test_sources_declare_limits,
                test_steady_state, test_membrane_histogram, test_op_tree_nesting,
-               test_nsys_projection):
+               test_nsys_projection, test_nsys_stale_sqlite,
+               test_op_tree_cap_keeps_first_level):
         fn()
     print("\n계약 테스트 전부 통과")

@@ -62,6 +62,21 @@ def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, 
     }
 
 
+def extract(trace_path: str) -> list[dict]:
+    """이미 쓰인 트레이스 파일에서 실행 전체 트랙을 꺼낸다.
+
+    이 이벤트들은 `traceEvents`에만 있고 확장 키 `xnn`에는 없다. 병합처럼
+    파일을 다시 읽어 쓰는 경로에서 그냥 두면 사라지므로, 꺼내 두었다가
+    다시 넣는다.
+    """
+    try:
+        with open(trace_path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:                                        # noqa: BLE001
+        return []
+    return [e for e in raw.get("traceEvents", []) if e.get("pid") == FULL_PID]
+
+
 def perfectly_nest(slices: list[dict]) -> tuple[list[dict], int]:
     """자식이 부모 밖으로 나가지 않게 끝을 자른다.
 

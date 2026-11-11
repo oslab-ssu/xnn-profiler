@@ -114,10 +114,10 @@ def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
     keep, total = [], 0                  # 깊이 단위로 끊는다 — 중간만 빠지면
     for d in sorted({c["depth"] for c in out}):      # 중첩 관계가 깨진다
         level = [c for c in out if c["depth"] == d]
-        if total + len(level) > cap:
+        if keep and total + len(level) > cap:
             break
-        keep += level
-        total += len(level)
+        keep += level                    # 첫 단계는 상한을 넘어도 남긴다.
+        total += len(level)              # 전부 버리면 구간이 비어 버린다
     return keep
 
 
