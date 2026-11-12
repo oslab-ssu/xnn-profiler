@@ -9,6 +9,12 @@
 
 `c_t`는 세 구간으로 읽는다. 0 부근은 패턴이 고정된 것, 1 부근은 매 스텝 독립으로
 뽑은 것과 다름이 없는 것, 1 초과는 연속한 스텝이 서로 반대로 가는 교대 패턴이다.
+
+정규화 분모 `2·r̄·(1-r̄)`는 모든 뉴런이 같은 확률 r̄로 발화하는 균질 베르누이
+모델을 기준으로 삼는다. 뉴런마다 발화 확률이 다르면 이 값은 실제 독립 기준보다
+크다 — x(1-x)가 오목이므로 mean(2·p_i·(1-p_i)) <= 2·r̄·(1-r̄) 이기 때문이다.
+dead·saturated 뉴런이 많은 레이어에서 차이가 크고, 기준 모델에 따라 판정이
+갈릴 수 있다. 그래서 뉴런별 발화율로 정규화한 값도 함께 산출한다.
 """
 
 from __future__ import annotations
@@ -51,21 +57,39 @@ def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
         return out
 
     d = (flat[1:] != flat[:-1]).mean(axis=1)
+    out["d_t"] = [round(float(v), 6) for v in d]
+    out["c_t_from_step"] = 1
+    out["baseline"] = "균질 베르누이 2·r̄·(1-r̄)"
+
+    def judge(c) -> Optional[int]:
+        """뒤에서부터 θ를 넘는 지점을 찾는다. 그 다음 스텝이 도달 스텝이다."""
+        step = 1
+        for i in range(len(c) - 1, -1, -1):
+            if c[i] > threshold:
+                step = i + 2         # c[i]는 c_{i+1} 이므로 그 다음 스텝
+                break
+        return step if step <= T - 1 else None
+
     c = d / denom
     out["c_t"] = [round(float(v), 6) for v in c]
-    out["c_t_from_step"] = 1
     out["c_t_min"] = round(float(c.min()), 6)
     out["c_t_max"] = round(float(c.max()), 6)
-
-    # 뒤에서부터 θ를 넘는 지점을 찾는다. 그 다음 스텝이 도달 스텝이다.
-    reached: Optional[int] = 1
-    for i in range(len(c) - 1, -1, -1):
-        if c[i] > threshold:
-            reached = i + 2          # c[i]는 c_{i+1} 이므로 그 다음 스텝
-            break
-    out["reached_step"] = reached if reached <= T - 1 else None
+    out["reached_step"] = judge(c)
     if out["reached_step"] is None:
         out["reason"] = f"마지막 스텝까지 c_t > {threshold} — 미도달"
+
+    # 뉴런별 발화율을 기준으로 한 분모. 판정이 기준 모델에 좌우되는지 본다.
+    if a.ndim >= 3:
+        p = a.mean(axis=(0, 1))
+        den_n = float((2.0 * p * (1.0 - p)).mean())
+        out["baseline_per_neuron"] = round(den_n, 6)
+        if den_n > 0.0:
+            cn = d / den_n
+            out["c_t_per_neuron_min"] = round(float(cn.min()), 6)
+            out["c_t_per_neuron_max"] = round(float(cn.max()), 6)
+            out["reached_step_per_neuron"] = judge(cn)
+            out["baseline_sensitive"] = (
+                out["reached_step_per_neuron"] != out["reached_step"])
     return out
 
 
