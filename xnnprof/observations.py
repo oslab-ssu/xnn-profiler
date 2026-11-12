@@ -1,11 +1,13 @@
-"""관측 산출물 — 집계값이 아니라 원본을 파일로 내보낸다.
+"""Observation artifacts -- the raw arrays are written out, not just aggregates.
 
-  스파이크   `[T, batch, neurons]` 이진 배열을 uint8 `.npy`로
-  막전위     `[T, 66]` 히스토그램 칸 개수를 int64 `.npy`로
+  spikes     `[T, batch, neurons]` binary array as a uint8 `.npy`
+  membrane   `[T, 66]` histogram bin counts as an int64 `.npy`
 
-막전위는 원 텐서를 쌓지 않는다. `[batch, neurons]` float32는 `fcsnn`의 `lif1`
-기준 스텝당 256 KB, T=10이면 2.56 MB다. 재려는 것 자체가 메모리인데 계측이
-그만큼 잡으면 측정 대상이 바뀌므로, 받자마자 고정 칸 히스토그램으로 환산한다.
+Raw membrane tensors are never accumulated. For `fcsnn`'s `lif1` a
+`[batch, neurons]` float32 tensor is 256 KB per step, or 2.56 MB at T=10.
+Memory is one of the things being measured, so instrumentation that holds
+that much would change what it measures; the tensor is converted to a
+fixed-bin histogram as soon as it arrives.
 """
 
 from __future__ import annotations
@@ -19,13 +21,13 @@ from typing import Any, Optional
 OBSERVATION_SCHEMA = "ssu.snn.observation"
 OBSERVATION_VERSION = 1
 
-# 막전위 히스토그램의 칸 구성. `torch.bucketize(..., right=True)` 결과와 일치한다.
-#   0        mem < 0            리셋이 빼기 방식이라 음수로 내려갈 수 있다
-#   1 ~ 64   [0, θ) 를 64등분   칸 하나의 폭은 θ/64
-#   65       mem >= θ           이 스텝에 발화한 몫
+# Bin layout of the membrane histogram. Matches `torch.bucketize(..., right=True)`.
+#   0        mem < 0            reset is subtractive, so values can go negative
+#   1 ~ 64   [0, theta) in 64   each bin is theta/64 wide
+#   65       mem >= theta       the share that fired at this step
 MEM_BINS = 66
 MEM_IN_RANGE = 64
-MEM_NEAR_BINS = (57, 64)        # [0, θ) 의 상위 12.5% — 다음 스텝에 발화할 후보
+MEM_NEAR_BINS = (57, 64)        # top 12.5% of [0, theta) -- candidates to fire next step
 
 
 @dataclass
@@ -56,14 +58,17 @@ class SpikeObservation:
 
 
 def derive_spike_metrics(array) -> dict[str, Any]:
-    """RTST checks.py의 spikes kind와 식을 일치시킨다. 바꾸면 인계 후 대조 불가."""
+    """Keep these formulas identical to the spikes kind in RTST checks.py.
+
+    Changing them makes the results impossible to cross-check after handover.
+    """
     import numpy as np
 
     a = np.asarray(array)
     if a.ndim < 3:
-        raise ValueError(f"[time, batch, neurons...] 3차원 이상 필요: {a.shape}")
+        raise ValueError(f"expected [time, batch, neurons...] with 3+ dims: {a.shape}")
     if not np.all((a == 0) | (a == 1)):
-        raise ValueError(f"0/1만 허용 (예: {float(a[(a != 0) & (a != 1)].ravel()[0])})")
+        raise ValueError(f"only 0/1 allowed (e.g. {float(a[(a != 0) & (a != 1)].ravel()[0])})")
 
     rates = a.mean(axis=(0, 1))
     first = np.where(a.any(axis=0), a.argmax(axis=0), -1)
@@ -81,7 +86,7 @@ def derive_spike_metrics(array) -> dict[str, Any]:
         "dead_fraction": float((rates == 0).mean()),
         "saturated_fraction": float((rates == 1).mean()),
         "first_spike_step_mean": float(fired.mean()) if fired.size else None,
-        "first_spike_step_unit": "발화한 (sample, neuron) 쌍 평균",
+        "first_spike_step_unit": "mean over (sample, neuron) pairs that fired",
         "never_fired_sample_neuron_fraction": float((first < 0).mean()),
         "spikes_per_neuron": (per_neuron.tolist() if per_neuron.size <= 4096
                               else None),
@@ -133,7 +138,7 @@ class MembraneObservation:
     quantity: str = "membrane_histogram"
     axes: tuple[str, ...] = ("time", "bin")
     threshold: Optional[float] = None
-    bin_layout: str = ("0: mem < 0 | 1~64: [0, θ) 64등분 | 65: mem >= θ")
+    bin_layout: str = ("0: mem < 0 | 1~64: [0, theta) in 64 bins | 65: mem >= theta")
     near_bins: tuple[int, int] = MEM_NEAR_BINS
     state_reset: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
@@ -149,21 +154,23 @@ class MembraneObservation:
 
 
 def derive_membrane_metrics(counts) -> dict[str, Any]:
-    """`[T, 66]` 칸 개수에서 산출한다. 원 텐서를 다시 읽지 않는다.
+    """Derive from `[T, 66]` bin counts. The raw tensor is never re-read.
 
-    `near_threshold_fraction`은 `[0, θ)`의 상위 8칸이 차지하는 비율이다. 임계
-    바로 아래에 몰린 뉴런의 몫이며, 타임스텝을 줄이거나 양자화할 때 출력이
-    얼마나 흔들릴지를 가늠하는 값이다.
+    `near_threshold_fraction` is the share held by the top 8 bins of
+    `[0, theta)`: the neurons sitting just below threshold. It indicates how
+    much the output is likely to move when timesteps are reduced or the model
+    is quantized.
 
-    히스토그램의 대상은 뉴런 모듈이 반환한 막전위다. 리셋과 감쇠가 이미 적용된
-    값이므로 `at_or_above_threshold_fraction`을 그 스텝의 발화율로 읽으면 안
-    된다. 발화율은 스파이크 배열에서 따로 산출한다.
+    The histogram is taken over the membrane potential returned by the neuron
+    module, with reset and decay already applied. So
+    `at_or_above_threshold_fraction` must not be read as that step's firing
+    rate; the firing rate is derived separately from the spike array.
     """
     import numpy as np
 
     a = np.asarray(counts)
     if a.ndim != 2 or a.shape[1] != MEM_BINS:
-        raise ValueError(f"[time, {MEM_BINS}] 필요: {a.shape}")
+        raise ValueError(f"expected [time, {MEM_BINS}]: {a.shape}")
     total = a.sum(axis=1).astype(float)
     total[total == 0] = np.nan
     lo, hi = MEM_NEAR_BINS

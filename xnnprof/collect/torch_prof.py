@@ -1,18 +1,21 @@
-"""PyTorch Profiler 수집기 — 라벨 기반 통합.
+"""PyTorch Profiler collector: label-based correlation.
 
-프로파일러는 `record_function`으로 개시된 사용자 라벨을 이벤트 트리에 그대로
-남긴다. hook이 통합 키 문자열 `fc1@t3`을 라벨로 개시하므로, 각 연산 이벤트의
-부모를 거슬러 올라가 가장 가까운 라벨을 찾으면 그 연산이 어느 구간에 속하는지가
-정해진다. 시계 원점을 맞추거나 시각 포함 여부를 판정할 필요가 없다.
+The profiler keeps user labels opened with `record_function` in its event
+tree. The hooks open the unified key string `fc1@t3` as such a label, so
+walking an operator event's parents up to the nearest label determines which
+region that operator belongs to. No clock origin has to be aligned and no
+timestamp containment has to be tested.
 
-구간별로 호스트 동기화를 유발하는 op도 따로 집계한다. `.item()`처럼 GPU 값을
-파이썬 값으로 꺼내는 호출은 CPU가 GPU 큐를 전부 비울 때까지 멈추게 하므로,
-연산량과 무관하게 그 구간의 시간을 지배한다. 어느 레이어의 어느 타임스텝에서
-발생했는지는 통합 키로 묶어야 드러난다.
+Operators that force a host synchronization are tallied per region as well.
+A call like `.item()`, which pulls a GPU value into Python, stalls the CPU
+until the GPU queue has drained, and therefore dominates that region's time
+regardless of how much arithmetic it does. Which layer and which timestep it
+happened in only becomes visible once it is grouped by the unified key.
 
-`key_averages()`는 T회 호출을 이미 합산한 값이라 레이어·타임스텝으로 되돌릴 수
-없으므로 쓰지 않는다. 라벨이 없는 실행(`emit_labels=False`, 또는 hook이 닿지
-않는 함수형 호출)은 귀속되지 않은 몫으로 분리해 출처에 남긴다.
+`key_averages()` is not used: it has already summed the T calls together and
+cannot be taken back apart by layer and timestep. Execution without a label
+(`emit_labels=False`, or a functional call the hooks cannot reach) is kept
+separate as the unattributed share and recorded in the provenance.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ PYFRAME = re.compile(r"^.+\(\d+\): .+$")      # torch/nn/modules/module.py(1736)
 MAX_DEPTH = 64
 INSTRUMENT = ("__instrument__", -1)
 
-# 호스트 동기화를 유발하는 op. GPU 값을 파이썬 값으로 꺼내는 호출들이다.
+# Operators that force a host sync: calls that pull a GPU value into Python.
 SYNC_OPS = frozenset({
     "aten::item", "aten::_local_scalar_dense", "aten::is_nonzero",
     "aten::nonzero", "aten::equal", "aten::allclose", "aten::_assert_async",
@@ -44,23 +47,27 @@ def is_pseudo(key: str) -> bool:
 
 
 def is_python_frame(key: str) -> bool:
-    """`with_stack`으로 켜지는 파이썬 추적 이벤트.
+    """A Python tracing event, produced when `with_stack` is enabled.
 
-    귀속 집계와 `op_tree`에서 모두 뺀다. 넣으면 같은 측정의 귀속률이 플래그
-    하나로 달라져 실행 간 비교가 깨진다. 파이썬 프레임까지 보려면 실행 전체
-    트랙(`emit/full_trace.py`)에 프로파일러 export가 그대로 얹혀 있다.
+    Excluded from both the attribution tally and `op_tree`. Including them
+    would make the attribution rate of the same measurement depend on a single
+    flag, which breaks comparison across runs. To see Python frames, the
+    execution-wide track (`emit/full_trace.py`) carries the profiler export
+    verbatim.
     """
     return key.startswith("<") or PYFRAME.match(key) is not None
 
 
 def locate(ev):
-    """이벤트가 속한 통합 키와, 그 라벨까지의 깊이·라벨 이벤트.
+    """The unified key an event belongs to, its depth below that label, and
+    the label event itself.
 
-    부모를 거슬러 올라가 가장 가까운 라벨을 찾는다. 계측 자신의 라벨에 먼저
-    닿으면 측정 대상이 아니므로 `INSTRUMENT`를 돌려준다.
+    Walks up the parents to the nearest label. If the instrumentation's own
+    label is hit first, the event is not part of the measurement and
+    `INSTRUMENT` is returned.
 
-    반환 `(key, depth, label_event)`. 깊이는 라벨에서 몇 단계 아래인지이며
-    라벨의 직계 자식이 1이다. 중첩 슬라이스를 그릴 때 쓴다.
+    Returns `(key, depth, label_event)`. Depth counts levels below the label,
+    with a direct child at 1; it is used to draw the nested slices.
     """
     cur, depth = ev, 0
     while cur is not None and depth < MAX_DEPTH:
@@ -80,7 +87,10 @@ def owner_of(ev) -> Optional[tuple[str, int]]:
 
 
 def _span(ev):
-    """이벤트의 `(시작, 길이)`를 µs로. 프로파일러 버전에 따라 속성이 다르다."""
+    """An event's `(start, duration)` in us.
+
+    The attribute name differs between profiler versions.
+    """
     tr = getattr(ev, "time_range", None) or getattr(ev, "cpu_interval", None)
     if tr is None:
         return None
@@ -91,12 +101,13 @@ def _span(ev):
 
 
 def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
-    """구간 안에 들어가도록 자르고, 깊은 단계부터 버려 개수를 맞춘다.
+    """Clip slices into the region and drop the deepest levels to meet the cap.
 
-    오프셋은 라벨 시작 시각 기준이므로 두 시계의 원점을 맞출 필요가 없다.
-    구간 길이는 `perf_counter`로, 오프셋은 프로파일러 시계로 재므로 끝에서
-    수 µs가 삐져나올 수 있다. 뷰어는 부모 밖으로 나가는 슬라이스를 거부하므로
-    구간 경계에서 자른다. 자른 몫은 `clamped`로 남긴다.
+    Offsets are relative to the label's start, so the two clocks never have to
+    share an origin. Region length is measured with `perf_counter` while
+    offsets come from the profiler's clock, so a slice can overhang the end by
+    a few us. Viewers reject slices that leave their parent, so they are cut at
+    the region boundary and the cut is recorded as `clamped`.
     """
     out = []
     for c in sorted(calls, key=lambda c: (c["depth"], c["off_us"])):
@@ -111,13 +122,13 @@ def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
         out.append(item)
     if len(out) <= cap:
         return out
-    keep, total = [], 0                  # 깊이 단위로 끊는다 — 중간만 빠지면
-    for d in sorted({c["depth"] for c in out}):      # 중첩 관계가 깨진다
-        level = [c for c in out if c["depth"] == d]
+    keep, total = [], 0                  # cut whole depth levels -- dropping
+    for d in sorted({c["depth"] for c in out}):      # a middle one would break
+        level = [c for c in out if c["depth"] == d]  # the nesting
         if keep and total + len(level) > cap:
             break
-        keep += level                    # 첫 단계는 상한을 넘어도 남긴다.
-        total += len(level)              # 전부 버리면 구간이 비어 버린다
+        keep += level                    # keep the first level even past the
+        total += len(level)              # cap, or the region would come out empty
     return keep
 
 
@@ -136,12 +147,12 @@ class TorchProfilerCollector(Collector):
         try:
             import torch.profiler  # noqa: F401
         except Exception as e:
-            return False, f"torch.profiler 없음: {e}"
+            return False, f"torch.profiler unavailable: {e}"
         return True, "ok"
 
     def collect(self, trace: Trace, **kw: Any):
         if self.prof is None:
-            return self.declare("unavailable", "프로파일러 세션이 전달되지 않음")
+            return self.declare("unavailable", "no profiler session was passed in")
         try:
             events = list(self.prof.events())
         except Exception as e:
@@ -158,7 +169,7 @@ class TorchProfilerCollector(Collector):
             op = str(ev.name)
             if (is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL
                     or is_python_frame(op)):
-                continue                             # 라벨 자체는 연산이 아니다
+                continue                             # a label is not an operator
             key, depth, label_ev = locate(ev)
             if self.op_tree and key is not None and key != INSTRUMENT:
                 me, base = _span(ev), _span(label_ev)
@@ -180,7 +191,7 @@ class TorchProfilerCollector(Collector):
         attributed = sum(sum(d.values()) for d in per_key.values())
         unattributed = sum(orphan.values())
         instrument_us = sum(instrument.values())
-        total = attributed + unattributed          # 계측 비용은 모수에서 제외한다
+        total = attributed + unattributed          # instrumentation cost is excluded
 
         matched, nested = 0, 0
         for (lid, step), ops in per_key.items():
@@ -201,8 +212,9 @@ class TorchProfilerCollector(Collector):
         top_inst = sorted(instrument.items(), key=lambda kv: -kv[1])[:10]
         status = "captured" if matched and not orphan else "partial"
         reason = "" if status == "captured" else (
-            "라벨 밖에서 실행된 연산이 존재 — 모듈 트리에 나타나지 않는 "
-            "함수형 호출(F.linear 등)과 프로파일러 자체 비용이 여기 포함된다")
+            "operations ran outside any label -- this covers functional calls "
+            "that do not appear in the module tree (F.linear and the like) "
+            "and the profiler's own cost")
         return self.declare(
             status, reason,
             keyed_regions=len(per_key),
@@ -219,4 +231,4 @@ class TorchProfilerCollector(Collector):
             instrument_top=[{"op": k, "self_time_us": round(v, 3)}
                             for k, v in top_inst],
             op_tree_calls=nested if self.op_tree else 0,
-            op_tree="라벨 시작 시각 대비 상대 오프셋" if self.op_tree else "off")
+            op_tree="offsets relative to the label start" if self.op_tree else "off")

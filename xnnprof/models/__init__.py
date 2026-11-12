@@ -1,17 +1,20 @@
-"""측정 대상 — 순수 DNN · 순수 SNN · 혼합. 하나의 프로파일러로 셋 다 측정한다."""
+"""Models under test: pure DNN, pure SNN and mixed.
+
+One profiler measures all three.
+"""
 
 from __future__ import annotations
 
 
 def mnist_mlp(**_):
-    """순수 DNN 기준선. SNN과 레이어 구성을 맞춘 784-1000-10 MLP."""
+    """Pure DNN baseline: a 784-1000-10 MLP matching the SNN layer layout."""
     import torch.nn as nn
     return nn.Sequential(nn.Flatten(), nn.Linear(784, 1000), nn.ReLU(),
                          nn.Linear(1000, 10)), {}
 
 
 def fcsnn(num_steps: int = 10, **_):
-    """순수 SNN. snnTorch Tutorial-5 구성 (784-1000-10, Leaky beta=0.95)."""
+    """Pure SNN: the snnTorch Tutorial-5 setup (784-1000-10, Leaky beta=0.95)."""
     import torch
     import torch.nn as nn
     import snntorch as snn
@@ -40,7 +43,9 @@ def fcsnn(num_steps: int = 10, **_):
 
 
 def repeated_dnn_snn(num_steps: int = 10, **_):
-    """혼합. 인수인계 문서 p128~129 / snn_profiling/snn_profile.py 구조."""
+    """Mixed. Structure from the handover document p128-129 and
+    snn_profiling/snn_profile.py.
+    """
     import torch
     import torch.nn as nn
     import snntorch as snn
@@ -83,5 +88,5 @@ REGISTRY = {"mnist_mlp": mnist_mlp, "fcsnn": fcsnn, "repeated_dnn_snn": repeated
 
 def build(name: str, **kw):
     if name not in REGISTRY:
-        raise KeyError(f"알 수 없는 모델 '{name}'. known={sorted(REGISTRY)}")
+        raise KeyError(f"unknown model '{name}'. known={sorted(REGISTRY)}")
     return REGISTRY[name](**kw)

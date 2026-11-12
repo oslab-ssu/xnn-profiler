@@ -1,4 +1,4 @@
-"""torch 없이 돌아가는 계약 테스트."""
+"""Contract tests that run without torch."""
 
 from __future__ import annotations
 
@@ -39,23 +39,23 @@ def test_snn_metrics():
     assert m["executed_macs"] == 1400
     assert m["state_bytes"] == 64
     ol = m["output_latency"]  # noqa
-    # 실행 순서상 마지막 스파이크 레이어가 출력 레이어
+    # The last spiking layer in execution order is the output layer
     assert ol["layer_id"] == "lif1"
-    # per_timestep_rate가 0,0,0.5,0.5 -> 출력은 스텝 2부터 발생한다
+    # per_timestep_rate is 0,0,0.5,0.5 -> output starts at step 2
     assert ol["first_spike_step"] == 2 and ol["timesteps"] == 4
-    assert "synops" not in m, "산출되지 않은 항목은 키를 두지 않는다"
+    assert "synops" not in m, "a metric that was not derived gets no key"
 
     dnn = Trace(run_id="r", model_id="dnn", timesteps=1)
     dnn.layers = [Layer("fc1", "Linear", calls=1, macs=10)]
     dnn.regions = [Region(0, "fc1", 0, ts_us=0.0, dur_us=1.0)]
     d = snn_metrics(dnn)
     assert "output_latency" not in d and "state_bytes" not in d, \
-        "순수 DNN에는 SNN 항목이 정의되지 않는다"
-    print("  신규 측정 항목 OK")
+        "SNN metrics are undefined for a pure DNN"
+    print("  new metrics OK")
 
 
 class FakeEvent:
-    """FunctionEvent의 name·cpu_parent·self_cpu_time_total만 흉내낸다."""
+    """Mimics only FunctionEvent's name, cpu_parent and self_cpu_time_total."""
 
     def __init__(self, name, parent=None, self_us=0.0):
         self.name = name
@@ -68,16 +68,17 @@ def test_label_join():
     linear = FakeEvent("aten::linear", label, 10.0)
     addmm = FakeEvent("aten::addmm", linear, 90.0)
     loose = FakeEvent("aten::empty", None, 7.0)
-    assert owner_of(addmm) == ("fc1", 3), "손자 이벤트도 라벨까지 거슬러 올라간다"
+    assert owner_of(addmm) == ("fc1", 3), "a grandchild walks up to its label"
     assert owner_of(linear) == ("fc1", 3)
-    assert owner_of(loose) is None, "라벨 밖은 귀속되지 않는다"
-    # 정규화된 layer_id도 그대로 복원된다
+    assert owner_of(loose) is None, "anything outside a label is unattributed"
+    # A normalized layer_id is recovered unchanged
     assert owner_of(FakeEvent("aten::addmm", FakeEvent("1:Linear@t0"))) \
         == ("1:Linear", 0)
-    # 계측 자신의 연산은 가까운 라벨이 계측 라벨이므로 구간에 섞이지 않는다
+    # Instrumentation's own operations hit the instrument label first,
+    # so they never mix into a region
     inst = FakeEvent(INSTRUMENT_LABEL, FakeEvent("fc1@t0"))
     assert owner_of(FakeEvent("aten::all", inst, 5.0)) == INSTRUMENT
-    print("  라벨 기반 통합 OK")
+    print("  label-based correlation OK")
 
 
 class Linear:
@@ -87,10 +88,10 @@ class Linear:
 def test_layer_id_normalization():
     m = Linear()
     assert layer_id_of("fc1", m) == "fc1"
-    assert layer_id_of("1", m) == "1:Linear", "nn.Sequential 자식의 숫자 이름"
+    assert layer_id_of("1", m) == "1:Linear", "numeric name of an nn.Sequential child"
     assert layer_id_of("dnn1.0", m) == "dnn1.0:Linear"
     assert layer_id_of("block.sub1", m) == "block.sub1"
-    print("  layer_id 정규화 OK")
+    print("  layer_id normalization OK")
 
 
 def test_trace_event_format():
@@ -111,9 +112,9 @@ def test_trace_event_format():
     assert len(with_ops) == 2
     assert with_ops[0]["args"]["ops_self_time_us"]["aten::addmm"] == 90.0
     syncd = [e for e in x if "host_sync_us" in e["args"]]
-    assert len(syncd) == 1, "동기화 op이 있는 구간만 표시된다"
+    assert len(syncd) == 1, "only regions holding a sync op are marked"
     assert syncd[0]["args"]["host_sync_us"] == 4.0
-    assert syncd[0]["args"]["host_sync_fraction"] == 0.8, "구간 5us 중 4us가 동기화"
+    assert syncd[0]["args"]["host_sync_fraction"] == 0.8, "4us of a 5us region is sync"
     counters = [e for e in ev if e["ph"] == "C"]
     assert len(counters) == 4 and counters[0]["args"]["rate"] == 0.0
     names = {e["args"]["name"] for e in ev if e.get("name") == "thread_name"}
@@ -137,7 +138,7 @@ def test_roundtrip():
     assert back.region("fc2", 2) is not None
     assert back.spikes[0].metrics["mean_rate"] == 0.25
     assert back.metrics["output_latency"]["first_spike_step"] == 2
-    print("  무손실 왕복 OK")
+    print("  lossless round trip OK")
 
 
 def test_sources_declare_limits():
@@ -147,41 +148,41 @@ def test_sources_declare_limits():
         assert s.status == "unavailable" and s.reason
         assert s.attribution in ("region", "process-global", "static-name")
     perf = next(c for c in ALL if c.name == "perf")
-    assert perf.attribution == "process-global", "perf는 레이어 귀속이 불가하다"
-    print("  수집기 귀속 한계 선언 OK")
+    assert perf.attribution == "process-global", "perf cannot attribute to a layer"
+    print("  collector attribution limits declared OK")
 
 
 def test_steady_state():
     from xnnprof.steady import steady_state
-    # 처음부터 같은 패턴 — 도달 스텝 1
+    # Same pattern from the start -- converges at step 1
     ss = steady_state([[0, 1, 0, 1]] * 4)
     assert ss["reached_step"] == 1 and ss["c_t"] == [0.0, 0.0, 0.0], ss
-    # 스텝 0->1 에서만 바뀌고 그 뒤 고정 — 도달 스텝 2
+    # Changes only from step 0->1 and is fixed after -- converges at step 2
     ss = steady_state([[1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 0, 1], [0, 1, 0, 1]])
     assert ss["reached_step"] == 2, ss
-    # 매 스텝 완전히 뒤집힘 — 교대 패턴이므로 c_t > 1, 미도달
+    # Fully inverted every step -- an alternating pattern, so c_t > 1, never converges
     flip = [[1, 1, 0, 0], [0, 0, 1, 1], [1, 1, 0, 0], [0, 0, 1, 1]]
     ss = steady_state(flip)
     assert ss["reached_step"] is None and ss["c_t_min"] > 1.0, ss
-    # 발화율 0 — 정규화 분모가 0이므로 정의되지 않는다. 0을 넣지 않는다
+    # Firing rate 0 -- the denominator is 0, so it is undefined. Do not substitute 0
     ss = steady_state([[0, 0], [0, 0], [0, 0]])
     assert "reached_step" not in ss and ss["reason"], ss
-    print("  정상상태 도달 스텝 OK")
+    print("  steady-state convergence step OK")
 
 
 def test_membrane_histogram():
     from xnnprof.observations import MEM_BINS, derive_membrane_metrics
     counts = [[0] * MEM_BINS for _ in range(2)]
     counts[0][0] = 50          # mem < 0
-    counts[0][60] = 25         # 임계 근처 (칸 57~64)
-    counts[0][65] = 25         # mem >= θ
-    counts[1][30] = 100        # 중간
+    counts[0][60] = 25         # near threshold (bins 57~64)
+    counts[0][65] = 25         # mem >= theta
+    counts[1][30] = 100        # mid range
     m = derive_membrane_metrics(counts)
     assert m["bins"] == MEM_BINS and m["near_bins"] == [57, 64]
     assert m["near_threshold_fraction"] == [0.25, 0.0], m
     assert m["at_or_above_threshold_fraction"] == [0.25, 0.0]
     assert m["below_zero_fraction"] == [0.5, 0.0]
-    print("  막전위 히스토그램 OK")
+    print("  membrane histogram OK")
 
 
 def test_op_tree_nesting():
@@ -193,9 +194,9 @@ def test_op_tree_nesting():
     assert [c["depth"] for c in out] == [1, 2, 2], out
     deep = next(c for c in out if c["name"] == "aten::addmm")
     assert deep["off_us"] + deep["dur_us"] <= 100.0 and deep["clamped"]
-    # 개수 상한은 깊이 단위로 끊는다 — 중간 단계만 빠지면 중첩이 깨진다
+    # The cap cuts whole depth levels -- dropping a middle one breaks nesting
     assert {c["depth"] for c in nest(calls, 100.0, cap=1)} == {1}
-    print("  연산자 호출 계층 OK")
+    print("  operator call hierarchy OK")
 
 
 def test_nsys_projection():
@@ -220,7 +221,7 @@ def test_nsys_projection():
     c.execute("INSERT INTO NVTX_EVENTS VALUES(200,300,59,'xnn::instrument',7)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(150,160,7,1)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(250,260,7,2)")
-    # 커널은 범위가 닫힌 뒤에 실행된다. 발행 시점으로 묶어야 한다
+    # Kernels run after the range closes; they must be grouped by launch time
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(9000,12000,1,1)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(20000,21000,2,1)")
     c.execute("INSERT INTO StringIds VALUES(1,'sgemm')")
@@ -232,14 +233,14 @@ def test_nsys_projection():
     g = t.region("fc2", 0).gpu
     assert g["kernels"] == 1 and g["kernel_us"] == 3.0, g
     assert g["top_kernels"][0]["name"] == "sgemm"
-    # 계측 라벨 안에서 발행된 커널은 구간의 몫이 아니다
+    # A kernel launched inside the instrument label is not the region's share
     assert src.detail["kernel_us_in_ranges"] == 3.0
     assert src.detail["kernel_us_total"] == 4.0
-    print("  NVTX GPU 투영 OK")
+    print("  NVTX GPU projection OK")
 
 
 def test_nsys_stale_sqlite():
-    """리포트를 다시 떴는데 옛 sqlite 가 남아 있으면 다시 내보내야 한다."""
+    """A stale sqlite left beside a regenerated report must be re-exported."""
     import os
     import tempfile
     import time
@@ -251,22 +252,22 @@ def test_nsys_stale_sqlite():
     time.sleep(0.02)
     open(rep, "w").write("new")
     got, why = sqlite_for(rep, export=False)
-    assert got == "" and "오래됨" in why, (got, why)
-    os.utime(db, None)                       # db 를 최신으로
+    assert got == "" and "older than the report" in why, (got, why)
+    os.utime(db, None)                       # make the db newer
     got, why = sqlite_for(rep, export=False)
     assert got == db, (got, why)
-    print("  nsys 리포트·sqlite 선후 판정 OK")
+    print("  nsys report/sqlite staleness check OK")
 
 
 def test_op_tree_cap_keeps_first_level():
-    """상한이 첫 단계보다 작아도 구간이 비면 안 된다."""
+    """A cap smaller than the first level must still leave the region non-empty."""
     from xnnprof.collect.torch_prof import nest
     calls = [{"name": f"op{i}", "depth": 1, "off_us": float(i), "dur_us": 1.0}
              for i in range(5)]
     calls.append({"name": "deep", "depth": 2, "off_us": 0.1, "dur_us": 0.5})
     out = nest(calls, dur_us=100.0, cap=2)
     assert out and {c["depth"] for c in out} == {1}, out
-    print("  op_tree 상한 처리 OK")
+    print("  op_tree cap handling OK")
 
 
 if __name__ == "__main__":
@@ -276,4 +277,4 @@ if __name__ == "__main__":
                test_nsys_projection, test_nsys_stale_sqlite,
                test_op_tree_cap_keeps_first_level):
         fn()
-    print("\n계약 테스트 전부 통과")
+    print("\nall contract tests passed")

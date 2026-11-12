@@ -1,4 +1,4 @@
-"""측정 1회 실행 — hook 부착, forward, 통일 포맷 기록."""
+"""A single measurement run: attach hooks, run forward, write the unified format."""
 
 from __future__ import annotations
 
@@ -45,18 +45,19 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             op_tree: bool = True, full_trace: bool = True,
             with_stack: bool = False,
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
-    """측정 1회.
+    """Run one measurement.
 
-    GPU에서 hook이 재는 시간은 커널 실행 시간이 아니라 CPU 쪽 실행 요청 구간이다.
-    비동기 실행이므로 둘은 일치하지 않는다. 구간은 NVTX 라벨로 그대로 내보내고,
-    커널을 그 구간에 연결하는 일은 Nsight Systems가 맡는다.
+    On GPU, what the hooks time is the CPU-side launch window, not kernel
+    execution time. Execution is asynchronous, so the two do not coincide.
+    The regions are emitted as NVTX labels as-is, and matching kernels to
+    those regions is left to Nsight Systems.
     """
     import torch
 
     os.makedirs(out_dir, exist_ok=True)
     cuda = device.startswith("cuda")
     if cuda and not torch.cuda.is_available():
-        raise RuntimeError("CUDA를 사용할 수 없다. nvidia-smi와 torch.version.cuda를 확인한다")
+        raise RuntimeError("CUDA is not available. Check nvidia-smi and torch.version.cuda")
 
     trace = Trace(
         run_id=f"{model_id}-{device}-T{timesteps}-{int(time.time())}",
@@ -79,7 +80,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     args = tuple(a.to(device) if torch.is_tensor(a) else a for a in args)
     model.eval()
     with torch.no_grad():
-        model(*args, **forward_kw)          # 워밍업: 지연 초기화·커널 선택 제외
+        model(*args, **forward_kw)          # warm-up: skip lazy init and kernel selection
     if cuda:
         torch.cuda.synchronize()
 
@@ -105,8 +106,9 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     trace.sources.append(TorchProfilerCollector(prof, op_tree=op_tree).collect(trace))
     named = {type(c).name for c in extra}
     if NsysCollector.name not in named:
-        # 리포트는 프로세스가 끝난 뒤에 쓰이므로 측정과 같은 실행에서는 비어 있다.
-        # 병합은 tools/nsys_merge 가 따로 수행한다.
+        # The report is written after the process exits, so it is empty in
+        # the same run that produced the measurement. tools/nsys_merge does
+        # the merge separately.
         trace.sources.append(NsysCollector().collect(trace))
     for cls in STUB_COLLECTORS:
         if cls.name not in named:
@@ -117,8 +119,9 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     annotate_synops(trace)
     trace.metrics = snn_metrics(trace)
 
-    # 실행 전체의 연산 계층. 프로파일러 export를 임시로 떠서 얹고 지운다 —
-    # 내보내는 파일은 Chrome Trace Event JSON 하나뿐이다.
+    # Execution-wide operator hierarchy. The profiler export is written to a
+    # temporary file, folded in and deleted -- the only file we emit is a
+    # single Chrome Trace Event JSON.
     full: list[dict] = []
     if full_trace and prof is not None:
         from .emit.full_trace import events_for
@@ -134,6 +137,6 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
         src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
         if src is not None:
             src.detail["full_trace"] = detail
-    trace._full = full                       # tools 쪽 재기록에서 다시 쓴다
+    trace._full = full                       # reused when the tools rewrite the file
     trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"), full=full)
     return trace

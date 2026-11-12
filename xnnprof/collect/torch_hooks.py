@@ -1,16 +1,19 @@
-"""PyTorch hook 수집기 — 통합 키 생성, 구간 측정, 라벨 개시, SNN 측정값 취득.
+"""PyTorch hook collector: builds unified keys, times regions, opens labels
+and captures SNN metrics.
 
-모델 코드를 수정하지 않는다. 모델 트리를 순회하여 레이어 타입을 기준으로 hook을
-등록하므로 DNN·SNN·혼합이 같은 경로로 측정된다. 구간(region)이 통합 키
-`(layer_id, timestep)`의 실행 1회를 가리키며, 다른 도구와의 상관 기준이 된다.
+Model code is never modified. Hooks are registered by walking the model tree
+and matching on layer type, so DNN, SNN and mixed models all go through the
+same path. A region denotes one execution of the unified key
+`(layer_id, timestep)` and is the correlation basis for every other tool.
 
-hook이 수행하는 기능은 두 가지다.
+The hooks do two things.
 
-  통합 키와 구간의 생성   호출 직전·직후 시각으로 `[시작, 종료)`를 확보하고,
-                          호출 계수로 타임스텝을 부여하며, 키 문자열
-                          `fc1@t3`을 record_function·NVTX 라벨로 개시·종료한다
-  SNN 측정값의 취득       MAC, 스파이크 배열, 상태 텐서 크기. 기존 도구가
-                          관측하지 않는 값이다
+  build unified keys     take timestamps immediately before and after the
+  and regions            call to get `[start, end)`, assign the timestep from
+                         the call count, and open/close the key string
+                         `fc1@t3` as a record_function and NVTX label
+  capture SNN metrics    MACs, spike arrays, state tensor size -- values no
+                         existing tool observes
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from ..observations import MEM_BINS, MEM_IN_RANGE
 from ..schema import DENSE, Layer, MembraneRef, Region, SpikeRef, STATE, Trace
 from .base import Collector, REGION
 
-INSTRUMENT_LABEL = "xnn::instrument"   # 계측 자신의 비용을 담는 라벨
+INSTRUMENT_LABEL = "xnn::instrument"   # label holding instrumentation's own cost
 
 
 def is_snn(module) -> bool:
@@ -30,11 +33,12 @@ def is_snn(module) -> bool:
 
 
 def theta_of(module):
-    """임계 θ. 측정 중이 아니라 `attach()` 때 한 번 읽어 캐시한다.
+    """Firing threshold theta, read once at `attach()` and cached.
 
-    snntorch는 `threshold`를 텐서 버퍼로 들고 있어서, hook 안에서 `float()`로
-    꺼내면 GPU에서 값을 내리느라 호스트 동기화가 걸린다. 그러면 계측이 측정
-    대상의 실행 순서를 바꾼다. 읽히지 않으면 항목을 산출하지 않는다.
+    snntorch keeps `threshold` as a tensor buffer, so calling `float()` on it
+    inside a hook pulls the value off the GPU and forces a host sync -- which
+    makes the instrumentation reorder the execution it is measuring. If the
+    value cannot be read, the metric is simply not produced.
     """
     t = getattr(module, "threshold", None)
     if t is None:
@@ -47,11 +51,11 @@ def theta_of(module):
 
 
 def layer_id_of(name: str, module) -> str:
-    """통합 키의 `layer_id`. 숫자 이름은 타입을 덧붙여 식별 가능하게 만든다.
+    """The `layer_id` of the unified key; numeric names get their type appended.
 
-    `nn.Sequential`의 자식은 `named_modules()`에서 `1`, `dnn1.0`처럼 인덱스로
-    나온다. 그대로 쓰면 결과 파일에서 어느 연산인지 판독되지 않으므로
-    `1:Linear`, `dnn1.0:Conv2d` 형태로 정규화한다.
+    Children of an `nn.Sequential` come out of `named_modules()` as indices
+    such as `1` or `dnn1.0`. Left as-is they are unreadable in the result
+    file, so they are normalized to `1:Linear`, `dnn1.0:Conv2d`.
     """
     head, _, last = name.rpartition(".")
     if last.isdigit():
@@ -60,20 +64,23 @@ def layer_id_of(name: str, module) -> str:
 
 
 def targets(model, cover_leaves: bool = False):
-    """계측 지점을 삽입할 모듈. 모델 구조를 가정하지 않고 트리를 순회한다.
+    """Modules to instrument. Walks the tree without assuming a model shape.
 
-    기본 규칙은 MAC이 발생하는 모듈(`nn.Linear`·`nn.Conv2d`)과 상태를 보유하고
-    타임스텝마다 호출되는 SNN 뉴런 모듈이다. 컨테이너(`nn.Sequential` 등)는
-    자식 구간을 포괄하는 상위 구간이 생겨 동일 시간이 이중 계상되므로 제외한다.
+    The default rule covers modules that perform MACs (`nn.Linear`,
+    `nn.Conv2d`) and SNN neuron modules, which hold state and are called once
+    per timestep. Containers such as `nn.Sequential` are excluded: they would
+    create an outer region enclosing their children and count the same time
+    twice.
 
-    `cover_leaves`를 켜면 자식이 없는 모든 모듈까지 넓힌다. MAC이 없는 모듈
-    (`nn.ReLU`·`nn.MaxPool2d`·`nn.Flatten`)이 실제로 차지하는 시간을
-    구간으로 확보할 수 있으나, 구간 수가 늘고 계측 비용도 함께 늘어난다.
-    두 규칙의 귀속률 차이를 측정하기 위한 선택지다.
+    With `cover_leaves` the rule widens to every module without children.
+    That gives a region for the time actually spent in modules with no MACs
+    (`nn.ReLU`, `nn.MaxPool2d`, `nn.Flatten`), at the cost of more regions and
+    more instrumentation overhead. It exists so the attribution rate of the
+    two rules can be compared.
     """
     import torch.nn as nn
     for name, m in model.named_modules():
-        if not name:                                  # 루트 모듈
+        if not name:                                  # the root module
             continue
         if isinstance(m, (nn.Linear, nn.Conv2d)) or is_snn(m):
             yield name, m
@@ -104,11 +111,12 @@ def _fan(module) -> dict:
 
 
 def looks_binary(x) -> bool:
-    """스파이크 구동 레이어 판정 — 입력이 이진 텐서인지.
+    """Decide whether a layer is spike-driven, i.e. whether its input is binary.
 
-    측정 구간 안에서 호출하면 안 된다. 텐서 전체를 훑는 커널이 추가되어
-    계측 비용이 측정 대상에 섞인다. 첫 호출의 입력을 참조만 보관해 두고
-    측정이 끝난 뒤 `collect()`에서 판정한다.
+    Must never be called inside a measured region: it adds a kernel that scans
+    the whole tensor, mixing instrumentation cost into the measurement. The
+    first call's input is kept by reference only and tested in `collect()`
+    once measurement is done.
     """
     import torch
     if x is None or not torch.is_tensor(x) or x.numel() == 0:
@@ -145,17 +153,18 @@ class TorchHookCollector(Collector):
         try:
             import torch  # noqa: F401
         except Exception as e:
-            return False, f"torch import 실패: {e}"
+            return False, f"torch import failed: {e}"
         return True, "ok"
 
     def _sync(self) -> None:
-        """구간 경계에서 GPU를 기다린다.
+        """Wait for the GPU at region boundaries.
 
-        GPU는 비동기로 실행되므로 hook이 재는 시간은 커널 실행 시간이 아니라
-        실행 요청 구간이다. 큐가 차는 시점에 호출된 레이어가 앞선 레이어의
-        대기 시간을 떠안아, 연산이 없는 뉴런 모듈이 행렬곱보다 오래 걸린 것처럼
-        보인다. 경계마다 동기화하면 구간 시간이 그 레이어의 실제 GPU 시간이
-        되지만, 레이어 간 겹침이 사라지므로 합계는 실제 실행 시간보다 길어진다.
+        The GPU runs asynchronously, so what the hooks time is the launch
+        window, not kernel execution. A layer called while the queue is full
+        absorbs the wait caused by earlier layers, which makes a neuron module
+        with no arithmetic look slower than a matrix multiply. Synchronizing at
+        every boundary makes each region time that layer's real GPU time, but
+        removes the overlap between layers, so the total exceeds real wall time.
         """
         if not self.sync_regions:
             return
@@ -165,17 +174,17 @@ class TorchHookCollector(Collector):
         if self._cuda:
             torch.cuda.synchronize()
 
-    # ---------------- hook 부착 ----------------
+    # ---------------- attaching hooks ----------------
     def attach(self, model) -> None:
         for name, m in targets(model, self.cover_leaves):
             lid = layer_id_of(name, m)
             if self.membrane and is_snn(m):
                 theta = theta_of(m)
                 if theta is None:
-                    self._mem_skip[lid] = "threshold 속성을 읽지 못함"
+                    self._mem_skip[lid] = "could not read the threshold attribute"
                 else:
                     self._theta[lid] = theta
-        self._t0 = time.perf_counter()        # θ를 다 읽은 뒤에 원점을 잡는다
+        self._t0 = time.perf_counter()        # set the origin after reading all thetas
         for name, m in targets(model, self.cover_leaves):
             lid = layer_id_of(name, m)
             self._handles.append(m.register_forward_pre_hook(self._pre(lid)))
@@ -185,14 +194,17 @@ class TorchHookCollector(Collector):
         for h in self._handles:
             h.remove()
         self._handles = []
-        for stack in self._open_labels.values():          # 예외로 남은 라벨 정리
+        for stack in self._open_labels.values():          # close labels left by an exception
             while stack:
                 self._close_label(stack.pop())
         self._open_labels.clear()
 
-    # ---------------- 라벨 개시·종료 ----------------
+    # ---------------- opening and closing labels ----------------
     def _open_label(self, key: str):
-        """통합 키 문자열을 도구 결과에 남긴다. 반환값은 종료에 쓸 핸들이다."""
+        """Stamp the unified key string into each tool's output.
+
+        Returns the handle used to close it.
+        """
         rf = nvtx = None
         if self.emit_labels:
             try:
@@ -227,7 +239,7 @@ class TorchHookCollector(Collector):
 
     def _pre(self, lid: str):
         def pre(mod, inputs):
-            self._sync()                  # 앞선 레이어의 커널을 비운 뒤 시작한다
+            self._sync()                  # drain the previous layer's kernels first
             a = self._acc.setdefault(lid, {})
             step = a.get("calls", 0)
             self._open_labels.setdefault(lid, []).append(
@@ -238,10 +250,11 @@ class TorchHookCollector(Collector):
     def _post(self, lid: str):
         def post(mod, inputs, output):
             import torch
-            self._sync()                  # 이 레이어의 커널이 끝나기를 기다린다
+            self._sync()                  # wait for this layer's kernels to finish
             now = time.perf_counter()
-            # 라벨을 먼저 닫는다. 아래의 텐서 검사·복사는 계측 자신의 비용이므로
-            # 라벨 안에 남으면 그 레이어의 연산 시간으로 잘못 귀속된다.
+            # Close the label first. The tensor checks and copies below are
+            # instrumentation cost; left inside the label they would be
+            # attributed to this layer's compute time.
             stack = self._open_labels.get(lid)
             if stack:
                 self._close_label(stack.pop())
@@ -263,7 +276,7 @@ class TorchHookCollector(Collector):
             if x is not None:
                 a["macs"] += macs_of(mod, x, output)
                 if step == 0:
-                    a["probe"] = x.detach()   # 판정은 측정 종료 후 (looks_binary)
+                    a["probe"] = x.detach()   # tested after measurement (looks_binary)
             if opened is not None:
                 dur = (now - opened) * 1e6
                 a["self_time_us"] += dur
@@ -274,22 +287,25 @@ class TorchHookCollector(Collector):
 
             if a["is_snn"]:
                 spk = output[0] if isinstance(output, tuple) else output
-                # 뉴런 종류마다 상태 텐서 개수가 다르다. Leaky는 (spk, mem),
-                # Synaptic은 (spk, syn, mem), Alpha는 (spk, syn_exc, syn_inh, mem).
-                # 첫 항목만 스파이크이고 나머지는 전부 지속 상태다.
+                # The number of state tensors varies by neuron type: Leaky is
+                # (spk, mem), Synaptic is (spk, syn, mem), Alpha is
+                # (spk, syn_exc, syn_inh, mem). Only the first item is the
+                # spike; everything after it is persistent state.
                 states = [t for t in (output[1:] if isinstance(output, tuple) else ())
                           if torch.is_tensor(t)]
                 if torch.is_tensor(spk):
-                    # 장치에 둔 채로 모은다. 스텝마다 .cpu()를 부르면 GPU에서
-                    # 매 스텝 동기화가 걸려 계측이 실행 순서를 바꾼다.
+                    # Accumulate on-device. Calling .cpu() each step would
+                    # force a sync per step and let the instrumentation
+                    # reorder execution.
                     self._spikes.setdefault(lid, []).append(
                         spk.detach().to(torch.uint8))
                 if states:
                     a["state_bytes"] = sum(int(t.numel() * t.element_size())
                                            for t in states)
                     a["state_tensors"] = len(states)
-                    # 막전위는 출력 튜플의 마지막 상태 텐서다. Leaky (spk, mem),
-                    # Synaptic (spk, syn, mem), Alpha (spk, syn_exc, syn_inh, mem).
+                    # The membrane potential is the last state tensor of the
+                    # output tuple: Leaky (spk, mem), Synaptic (spk, syn, mem),
+                    # Alpha (spk, syn_exc, syn_inh, mem).
                     if self.membrane:
                         self._bucket(lid, states[-1])
             if inst is not None:
@@ -297,28 +313,31 @@ class TorchHookCollector(Collector):
         return post
 
     def _bucket(self, lid: str, mem) -> None:
-        """막전위를 66칸 히스토그램으로 환산해 장치 위에 누적한다.
+        """Convert the membrane potential to a 66-bin histogram on-device.
 
-        커널 2개(`bucketize`, `bincount`)로 끝나고 값을 호스트로 내리지 않으므로
-        호스트 동기화가 없다. 원 텐서는 보관하지 않는다 — 재려는 것이 메모리인데
-        계측이 스텝마다 그만큼 잡으면 측정 대상이 바뀐다.
+        It costs two kernels and never pulls a value to the host, so there is
+        no host sync. The raw tensor is not retained: memory is one of the
+        things being measured, and holding that much per step would change the
+        measurement.
         """
         import torch
         theta = self._theta.get(lid)
         if theta is None:
             return
-        # 칸 폭이 일정하므로 경계 탐색 없이 나눗셈으로 칸을 정한다.
-        #   mem < 0 -> 0 | [0, θ) -> 1~64 | mem >= θ -> 65
-        # `bucketize`와 결과가 같으면서 원소당 이분 탐색이 사라진다. CPU에서
-        # 뉴런 1,000개 × batch 64 × T=10 기준으로 이 차이가 크다.
+        # Bins are equal width, so the bin index is arithmetic, not a search.
+        #   mem < 0 -> 0 | [0, theta) -> 1~64 | mem >= theta -> 65
+        # Identical to `bucketize` but without a per-element binary search.
+        # On CPU that matters at 1,000 neurons x batch 64 x T=10.
         scale = MEM_IN_RANGE / theta
         idx = (mem.detach().reshape(-1) * scale).floor_().add_(1).clamp_(
             0, MEM_BINS - 1).to(torch.int64)
-        # 칸을 세는 방법을 장치에 따라 바꾼다. 두 경로의 결과는 같다(체크섬 대조).
-        #   CUDA  `bincount`는 출력 크기를 정하려고 입력의 min·max를 호스트로
-        #         꺼내므로(aten::_local_scalar_dense) 호출마다 GPU 전체 동기화가
-        #         걸린다. 칸 수가 고정이니 출력을 미리 잡고 더해 왕복을 없앤다
-        #   CPU   동기화라는 개념이 없고 `bincount`가 scatter_add_보다 빠르다
+        # Counting differs by device; both paths give identical results
+        # (verified by checksum).
+        #   CUDA  `bincount` pulls the input min/max to the host to size its
+        #         output (aten::_local_scalar_dense), forcing a full GPU sync
+        #         on every call. The bin count is fixed, so preallocate the
+        #         output and accumulate into it to remove that round trip.
+        #   CPU   there is no sync to speak of, and `bincount` beats scatter_add_
         if idx.is_cuda:
             out = torch.zeros(MEM_BINS, dtype=torch.int64, device=idx.device)
             out.scatter_add_(0, idx, torch.ones_like(idx))
@@ -326,9 +345,9 @@ class TorchHookCollector(Collector):
             out = torch.bincount(idx, minlength=MEM_BINS)
         self._hist.setdefault(lid, []).append(out)
 
-    # ---------------- 통일 포맷으로 ----------------
+    # ---------------- into the unified format ----------------
     def membrane_arrays(self) -> dict:
-        """`[T, 66]` 정수 배열. 측정이 끝난 뒤 한 번에 호스트로 내린다."""
+        """`[T, 66]` integer arrays, pulled to the host once after measurement."""
         import numpy as np
         import torch
         return {k: np.ascontiguousarray(torch.stack(v).cpu().numpy(), dtype=np.int64)
@@ -386,7 +405,7 @@ class TorchHookCollector(Collector):
                           else "cpu-launch-window",
             labels="record_function" if self.emit_labels else "none",
             membrane=("off" if not self.membrane else
-                      f"{len(self._hist)} 레이어" if self._hist else "산출 없음"))
+                      f"{len(self._hist)} layers" if self._hist else "nothing collected"))
         if self._mem_skip:
             detail["membrane_skipped"] = dict(self._mem_skip)
         return self.declare("captured", **detail)

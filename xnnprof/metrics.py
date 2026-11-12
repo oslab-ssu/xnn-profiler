@@ -1,12 +1,13 @@
-"""신규 측정 항목 중 trace 전체를 보아야 산출되는 값.
+"""Metrics that can only be derived from the trace as a whole.
 
-레이어 단위 값은 수집기가, 스파이크 배열에서 나오는 값은 observations가 낸다.
-여기서는 그 둘을 모아야 정해지는 두 항목만 산출한다.
+Per-layer values come from the collectors and spike-array values come from
+`observations`; this module derives only what needs both.
 
-  출력 발생 지연      출력 레이어의 스파이크율이 최초로 0이 아닌 타임스텝
-  상태 메모리         타임스텝 사이에 유지되는 상태 텐서 크기의 합
-  정상상태 도달 스텝  레이어별 산출값을 모은다 (산출식은 `steady.py`)
-  막전위 분포         레이어별 히스토그램 요약을 모은다
+  output latency        first timestep at which the output layer's spike rate
+                        is non-zero
+  state memory          total size of the state tensors carried across timesteps
+  steady-state step     gathers the per-layer results (formula in `steady.py`)
+  membrane distribution gathers the per-layer histogram summaries
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from .schema import Trace
 
 
 def execution_order(trace: Trace) -> list[str]:
-    """구간의 시작 시각 순으로 레이어가 처음 등장하는 순서."""
+    """Order in which layers first appear, sorted by region start time."""
     seen, out = set(), []
     for r in sorted(trace.regions, key=lambda r: r.ts_us):
         if r.layer_id not in seen:
@@ -25,7 +26,7 @@ def execution_order(trace: Trace) -> list[str]:
 
 
 def output_layer(trace: Trace) -> str:
-    """실행 순서상 가장 마지막에 오는 스파이크 레이어를 출력 레이어로 본다."""
+    """Treat the last spiking layer in execution order as the output layer."""
     order = execution_order(trace)
     spiking = {sp.layer_id for sp in trace.spikes}
     for lid in reversed(order):
@@ -35,7 +36,7 @@ def output_layer(trace: Trace) -> str:
 
 
 def output_latency(trace: Trace):
-    """스파이크 레이어가 없는 모델(순수 DNN)에서는 정의되지 않는다."""
+    """Undefined for a model with no spiking layer (a pure DNN)."""
     lid = output_layer(trace)
     sp = next((s for s in trace.spikes if s.layer_id == lid), None)
     if sp is None:
@@ -46,12 +47,12 @@ def output_latency(trace: Trace):
         "layer_id": lid,
         "first_spike_step": first,
         "timesteps": len(series),
-        "unit": "타임스텝 인덱스 (0부터)",
+        "unit": "timestep index (0-based)",
     }
 
 
 def steady_state(trace: Trace) -> dict:
-    """레이어별 정상상태 도달 스텝. 산출식은 `steady.py`."""
+    """Per-layer steady-state convergence step. Formula in `steady.py`."""
     out = {}
     for sp in trace.spikes:
         ss = sp.steady_state or {}
@@ -65,7 +66,9 @@ def steady_state(trace: Trace) -> dict:
 
 
 def membrane_distribution(trace: Trace) -> dict:
-    """레이어별 막전위 분포 요약. 전체 배열은 관측 산출물 파일에 있다."""
+    """Per-layer membrane distribution summary. Full arrays live in the
+    observation output files.
+    """
     out = {}
     for mb in trace.membranes:
         m = mb.metrics or {}
@@ -81,7 +84,7 @@ def membrane_distribution(trace: Trace) -> dict:
 
 
 def snn_metrics(trace: Trace) -> dict:
-    """산출되지 않는 항목은 키를 두지 않는다. '0'과 '정의되지 않음'은 다르다."""
+    """Omit the key for anything not derived. '0' and 'undefined' differ."""
     out = {"executed_macs": trace.executed_macs()}
     state = sum(l.state_bytes for l in trace.layers)
     lat = output_latency(trace)

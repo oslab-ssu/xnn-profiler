@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""nsys_merge — Nsight Systems 리포트의 GPU 커널 시간을 구간에 병합한다.
+"""nsys_merge -- merge GPU kernel time from an Nsight Systems report into the
+profiling regions.
 
-측정과 같은 실행에서는 병합할 수 없다. 리포트는 프로세스가 끝난 뒤에 쓰이므로,
-측정 중에는 아직 파일이 없다. 그래서 두 단계로 나눈다.
+The merge cannot happen in the same run as the measurement: the report is
+written only after the process exits, so during measurement the file does not
+exist yet. Hence two steps.
 
   1) nsys profile -t cuda,nvtx,osrt -o out/fcsnn/nsys \\
          python tools/xnnprof --model fcsnn --device cuda --train 0 \\
          --weights weights --no-torch-profiler
   2) tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 
-2단계가 트레이스를 제자리에서 갱신한다. 구간마다 `args.gpu`에 커널 시간·커널
-수·투영 구간과 상위 커널 이름이 들어가고, 출처에 투영 규칙과 범위 밖 커널의
-몫이 선언된다.
+Step 2 updates the trace in place. Each region gains `args.gpu` with kernel
+time, kernel count, projected span and the top kernel names, and the
+provenance declares the projection rule and the share of kernels that fell
+outside any range.
 
-`.nsys-rep`을 주면 옆에 `.sqlite`를 만들어 읽는다(`nsys export`). 이미
-`.sqlite`가 있으면 nsys 없이도 병합된다 — 측정한 기계가 아니어도 된다.
+Given a `.nsys-rep`, a `.sqlite` is produced next to it (`nsys export`) and
+read. If a `.sqlite` already exists the merge works without nsys installed --
+it does not have to be the machine that took the measurement.
 """
 
 from __future__ import annotations
@@ -27,8 +31,8 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-# 출력이 파이프로 가면 Windows에서 인코딩이 cp949로 떨어져 한글·기호에서
-# UnicodeEncodeError가 난다 (nsys profile 아래에서 실행할 때). UTF-8로 고정한다.
+# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
+# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -42,16 +46,17 @@ from xnnprof.schema import Trace                    # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("trace", help="xnn-trace.json")
-    ap.add_argument("report", help=".nsys-rep 또는 .sqlite")
+    ap.add_argument("report", help=".nsys-rep or .sqlite")
     ap.add_argument("--no-export", action="store_true",
-                    help=".sqlite 가 없을 때 nsys export 를 시도하지 않는다")
+                    help="do not run nsys export when the .sqlite is missing")
     ap.add_argument("--out", default="",
-                    help="기본값은 입력 트레이스를 제자리에서 갱신")
-    ap.add_argument("--top", type=int, default=3, help="구간별 상위 커널 수")
+                    help="defaults to updating the input trace in place")
+    ap.add_argument("--top", type=int, default=3,
+                    help="number of top kernels to keep per region")
     args = ap.parse_args()
 
     trace = Trace.load(args.trace)
-    full = extract(args.trace)          # 실행 전체 트랙은 xnn 키에 없다
+    full = extract(args.trace)          # the execution-wide track is not under the xnn key
     before = len(trace.regions)
     src = NsysCollector(args.report, export=not args.no_export,
                         top=args.top).collect(trace)
@@ -64,28 +69,28 @@ def main() -> int:
     d = src.detail or {}
     print(f"nsight_systems  {src.status}  {src.reason}")
     if d:
-        print(f"  NVTX 범위 {d.get('nvtx_ranges')}개 / 구간 {before}개 중 "
-              f"{d.get('matched_regions')}개에 병합")
-        print(f"  범위 안 커널 {d.get('kernel_us_in_ranges', 0):,.1f}us / "
-              f"전체 {d.get('kernel_us_total', 0):,.1f}us "
-              f"({d.get('in_range_fraction', 0):.1%}, 커널 "
-              f"{d.get('kernels_total', 0):,}개)")
-        print(f"  투영 규칙 {d.get('projection')}")
+        print(f"  {d.get('nvtx_ranges')} NVTX ranges merged into "
+              f"{d.get('matched_regions')} of {before} regions")
+        print(f"  in-range kernels {d.get('kernel_us_in_ranges', 0):,.1f}us / "
+              f"total {d.get('kernel_us_total', 0):,.1f}us "
+              f"({d.get('in_range_fraction', 0):.1%}, "
+              f"{d.get('kernels_total', 0):,} kernels)")
+        print(f"  projection rule {d.get('projection')}")
         if d.get("sqlite"):
-            print(f"  읽은 DB {d['sqlite']}")
+            print(f"  database read {d['sqlite']}")
     top = sorted((r for r in trace.regions if r.gpu),
                  key=lambda r: -r.gpu.get("kernel_us", 0))[:8]
     if top:
         print()
-        print(f"  {'구간':16s} {'커널(us)':>10s} {'커널수':>6s} "
-              f"{'구간(us)':>10s} {'커널/구간':>9s}  상위 커널")
+        print(f"  {'region':16s} {'kernel(us)':>12s} {'kernels':>8s} "
+              f"{'region(us)':>12s} {'share':>8s}  top kernel")
         for r in top:
             g = r.gpu
             share = g["kernel_us"] / r.dur_us if r.dur_us else 0
             name = (g.get("top_kernels") or [{}])[0].get("name", "")
             print(f"  {r.layer_id + '@t' + str(r.timestep):16s} "
-                  f"{g['kernel_us']:10,.1f} {g['kernels']:6d} "
-                  f"{r.dur_us:10,.1f} {share:9.1%}  {name[:40]}")
+                  f"{g['kernel_us']:12,.1f} {g['kernels']:8d} "
+                  f"{r.dur_us:12,.1f} {share:8.1%}  {name[:40]}")
     print(f"\n-> {out}")
     return 0 if src.status in ("captured", "partial") else 1
 

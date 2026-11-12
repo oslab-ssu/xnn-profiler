@@ -1,18 +1,23 @@
-"""실행 전체의 연산 계층 — PyTorch Profiler의 Chrome Trace export를 얹는다.
+"""Execution-wide operator hierarchy, folded in from the PyTorch Profiler's
+Chrome Trace export.
 
-구간별 `op_tree`는 '등록된 구간에 귀속된 연산'만 담는다. 그래서 레이어 트랙은
-구간이 열린 동안만 차고, 그 사이에 실행된 것(계측 자신의 비용, 라벨 밖 함수형
-호출, 루프 바깥 연산)은 어디에도 보이지 않는다. 무엇이 언제 돌았는지를 끊김
-없이 보려면 그 몫까지 있어야 한다.
+A region's `op_tree` holds only the operations attributed to a registered
+region. The layer tracks therefore fill up only while a region is open, and
+whatever ran in between -- instrumentation's own cost, functional calls
+outside any label, work outside the loop -- shows up nowhere. Seeing what ran
+when, without gaps, requires that share as well.
 
-프로파일러의 export에는 hook이 건 라벨이 `user_annotation` 슬라이스로 그대로
-들어 있다. 같은 이름이 우리 구간 목록에도 있으므로, 두 시계의 원점 차이를
-라벨 쌍에서 구해 한 번만 더하면 전체 이벤트가 우리 타임라인에 얹힌다.
-설계서 2.2절의 잔차 문제는 여기서는 생기지 않는다 — 대응점을 하나가 아니라
-라벨 전부에서 잡고, 남은 잔차를 출처에 기록하기 때문이다.
+The profiler export contains the labels opened by the hooks, verbatim, as
+`user_annotation` slices. The same names appear in our region list, so the
+difference between the two clock origins can be derived from those label
+pairs and added once to put every event on our timeline. The residual problem
+from section 2.2 of the design document does not arise here: the
+correspondence is taken from all labels rather than a single one, and the
+remaining residual is recorded in the provenance.
 
-얹은 이벤트는 별도 pid에 둔다. 레이어별 트랙은 통합 키로 읽는 뷰이고, 이쪽은
-실행 순서로 읽는 뷰다. 둘을 같은 트랙에 섞으면 어느 쪽도 읽히지 않는다.
+The folded-in events live under their own pid. The per-layer tracks are a
+view read by unified key; this one is a view read by execution order. Mixing
+them into the same track makes neither readable.
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from ..collect.torch_prof import LABEL
 from ..schema import Trace
 
 FULL_PID = 2
-PROCESS_NAME = "실행 전체 (PyTorch Profiler)"
+PROCESS_NAME = "Execution-wide (PyTorch Profiler)"
 
 
 def _label_events(events: list[dict]) -> dict[str, dict]:
@@ -40,7 +45,10 @@ def _label_events(events: list[dict]) -> dict[str, dict]:
 
 
 def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, Any]]:
-    """두 시계의 원점 차이. 라벨 전부에서 구하고 잔차를 함께 돌려준다."""
+    """Offset between the two clock origins.
+
+    Derived from every label, and returned together with the residual.
+    """
     labels = _label_events(events)
     diffs = []
     for r in trace.regions:
@@ -51,7 +59,7 @@ def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, 
             continue
         diffs.append(r.ts_us - float(ev["ts"]))
     if not diffs:
-        return None, {"reason": "export에서 라벨 슬라이스를 찾지 못함"}
+        return None, {"reason": "no label slice found in the export"}
     diffs.sort()
     offset = diffs[len(diffs) // 2]
     resid = [d - offset for d in diffs]
@@ -63,11 +71,11 @@ def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, 
 
 
 def extract(trace_path: str) -> list[dict]:
-    """이미 쓰인 트레이스 파일에서 실행 전체 트랙을 꺼낸다.
+    """Pull the execution-wide track back out of an already written trace file.
 
-    이 이벤트들은 `traceEvents`에만 있고 확장 키 `xnn`에는 없다. 병합처럼
-    파일을 다시 읽어 쓰는 경로에서 그냥 두면 사라지므로, 꺼내 두었다가
-    다시 넣는다.
+    These events live only in `traceEvents`, not under the `xnn` extension
+    key. Any path that re-reads and rewrites the file -- a merge, for
+    instance -- would drop them, so they are extracted and re-injected.
     """
     try:
         with open(trace_path, encoding="utf-8") as f:
@@ -78,11 +86,12 @@ def extract(trace_path: str) -> list[dict]:
 
 
 def perfectly_nest(slices: list[dict]) -> tuple[list[dict], int]:
-    """자식이 부모 밖으로 나가지 않게 끝을 자른다.
+    """Clip slice ends so a child never extends past its parent.
 
-    `with_stack`을 켜면 파이썬 추적 이벤트와 연산 이벤트의 시각이 서로 다른
-    경로로 찍혀 경계가 몇 µs씩 어긋난다. 뷰어는 완전히 포개지지 않는 슬라이스를
-    거부하므로 포함 관계를 강제한다. 자른 개수는 출처에 남긴다.
+    With `with_stack` enabled, Python tracing events and operator events are
+    timestamped through different paths, so their boundaries disagree by a few
+    us. Viewers reject slices that are not perfectly nested, so containment is
+    enforced here. The number of clipped slices is recorded in the provenance.
     """
     groups: dict[tuple, list[dict]] = {}
     for s in slices:
@@ -107,9 +116,9 @@ def perfectly_nest(slices: list[dict]) -> tuple[list[dict], int]:
 
 
 def events_for(trace: Trace, export_path: str) -> tuple[list[dict], dict[str, Any]]:
-    """export 파일을 읽어 우리 타임라인에 얹을 이벤트 목록을 만든다."""
+    """Read the export file and build the event list to fold into our timeline."""
     if not export_path or not os.path.exists(export_path):
-        return [], {"reason": "export 파일 없음"}
+        return [], {"reason": "export file not found"}
     try:
         with open(export_path, encoding="utf-8") as f:
             raw = json.load(f)

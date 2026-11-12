@@ -1,11 +1,12 @@
-"""가중치의 저장·적재와 지문.
+"""Saving, loading and fingerprinting weights.
 
-장치를 바꿔 가며 같은 모델을 측정하려면 같은 가중치를 써야 한다. 같은 시드를
-주어도 CPU와 CUDA는 커널이 다르므로 학습 결과가 갈리고, 그러면 스파이크 통계가
-장치 때문에 달라진 것인지 모델이 달라서 달라진 것인지 구분되지 않는다.
+Measuring the same model across devices requires the same weights. Even with
+the same seed, CPU and CUDA use different kernels, so training diverges -- and
+then it is impossible to tell whether the spike statistics differ because of
+the device or because the model differs.
 
-지문(sha256)을 결과 파일에 남겨, 두 측정이 같은 가중치를 쓴 것임을 사후에
-확인할 수 있게 한다.
+The sha256 fingerprint is recorded in the result file so that two measurements
+can be confirmed after the fact to have used the same weights.
 """
 
 from __future__ import annotations
@@ -16,7 +17,10 @@ from typing import Callable, Optional
 
 
 def fingerprint(model) -> str:
-    """state_dict의 내용으로 만든 지문. 키 이름과 값의 바이트를 모두 반영한다."""
+    """Fingerprint built from the state_dict contents.
+
+    Covers both the key names and the bytes of the values.
+    """
     h = hashlib.sha256()
     sd = model.state_dict()
     for k in sorted(sd):
@@ -30,10 +34,11 @@ def fingerprint(model) -> str:
 
 def load_or_train(model, name: str, weights_dir: str, device: str,
                   train: Optional[Callable[[], None]]) -> tuple[str, str]:
-    """(출처, 지문)을 돌려준다.
+    """Return `(origin, fingerprint)`.
 
-    출처는 loaded · trained · random 중 하나다. `weights_dir`에 파일이 있으면
-    학습을 건너뛰고 불러 쓴다. 없으면 학습한 뒤 저장한다.
+    The origin is one of loaded, trained or random. If a file exists in
+    `weights_dir`, training is skipped and the file is loaded; otherwise the
+    model is trained and then saved.
     """
     import torch
 
