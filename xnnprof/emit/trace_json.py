@@ -1,16 +1,16 @@
-"""통일 포맷 = Chrome Trace Event JSON.
+"""Unified format = Chrome Trace Event JSON.
 
-Perfetto · Speedscope · Tracy · 기존 VS Code extension이 모두 이 포맷을 읽는다.
-별도 포맷을 두지 않고, 우리 추가 정보는 이 포맷의 확장 지점에 싣는다.
+Perfetto, Speedscope, Tracy, and the existing VS Code extension all read it.
+There is no separate format; our extra information goes into its extension points.
 
-  tid        레이어 1개 = 트랙 1개. 시간축 루프가 그 트랙의 반복 슬라이스로 보인다
-  cat        dense | spike | state — 뷰어에서 도메인 필터
-  args       통합 키(timestep) · 레이어별 MAC · 스파이크 구동 여부 ·
-             그 구간에 귀속된 PyTorch Profiler op별 self time ·
-             스파이크 레이어면 신규 측정 항목(args.snn)
-  ph="i"     모델 단위 신규 측정 항목을 담은 요약 마커 1개
-  ph="C"     타임스텝별 스파이크 발화율 카운터 (Perfetto에서 그래프로 뜬다)
-  "xnn"      최상위 확장 키. 뷰어는 traceEvents만 읽으므로 무시하고 지나간다
+  tid        one layer = one track; the time-step loop shows as repeated slices on it
+  cat        dense | spike | state, a domain filter in the viewer
+  args       unified key (timestep), per-layer MACs, spike-driven flag,
+             PyTorch Profiler per-op self time attributed to the region,
+             and for spiking layers the new metrics (args.snn)
+  ph="i"     one summary marker holding model-level metrics
+  ph="C"     per-timestep spike-rate counters (plotted as graphs in Perfetto)
+  "xnn"      top-level extension key; viewers read only traceEvents and skip it
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def _tracks(trace: Trace) -> dict[str, int]:
 
 
 def _snn_args(sp, timestep) -> dict[str, Any]:
-    """스파이크 레이어 구간에 붙는 신규 측정 항목."""
+    """New metrics attached to spiking-layer regions."""
     m = sp.metrics or {}
     series = m.get("per_timestep_rate") or []
     out: dict[str, Any] = {"neurons": sp.neurons}
@@ -49,21 +49,21 @@ def _snn_args(sp, timestep) -> dict[str, Any]:
         out["fanout"] = sp.fanout
         out["fanout_from"] = sp.fanout_from
     elif sp.fanout_from:
-        out["synops"] = f"정의되지 않음 ({sp.fanout_from})"
+        out["synops"] = f"undefined ({sp.fanout_from})"
     ss = sp.steady_state or {}
     if ss:
         out["steady_state_step"] = ss.get("reached_step")
         if ss.get("reached_step") is None and ss.get("reason"):
-            out["steady_state"] = f"미도달 ({ss['reason']})"
+            out["steady_state"] = f"not reached ({ss['reason']})"
         c = ss.get("c_t") or []
-        # c_t[i] 는 스텝 i+1 의 값이다. 스텝 0 에는 직전 스텝이 없다.
+        # c_t[i] belongs to step i+1; step 0 has no previous step.
         if timestep is not None and 1 <= timestep <= len(c):
             out["pattern_change_c_t"] = c[timestep - 1]
     return out
 
 
 def _mem_args(mb, timestep) -> dict[str, Any]:
-    """막전위 분포. 구간에는 그 스텝의 값만 싣고 전체 배열은 파일로 남긴다."""
+    """Membrane distribution. A region carries only its own step; full arrays stay in files."""
     m = mb.metrics or {}
     out: dict[str, Any] = {"threshold": mb.threshold, "bins": mb.bins,
                            "path": mb.path}
@@ -78,13 +78,13 @@ def _mem_args(mb, timestep) -> dict[str, Any]:
 
 
 def _summary(trace: Trace) -> dict[str, Any]:
-    """모델 단위 측정값. 구간 하나에 귀속되지 않아 별도 마커로 내보낸다."""
+    """Model-level values. They belong to no single region, so they go in a separate marker."""
     env = trace.env or {}
     out: dict[str, Any] = dict(trace.metrics or {})
     for k in ("device", "region_timing", "weights_sha256", "batch_accuracy"):
         if env.get(k) is not None:
             out[k] = env[k]
-    # 구간의 args.gpu(커널 통계 dict)와 겹치지 않게 장치 이름은 gpu_name으로 싣는다
+    # Device name goes in gpu_name so it does not clash with region args.gpu (kernel stats dict)
     if env.get("gpu") is not None:
         out["gpu_name"] = env["gpu"]
     src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
@@ -142,8 +142,8 @@ def build(trace: Trace, pid: int = 1,
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),
                    "pid": pid, "tid": t, "args": args})
-        # 구간 안의 연산자 호출 계층. 같은 트랙에 중첩 슬라이스로 쌓으면
-        # Flame Graph의 뿌리가 통합 키가 된다.
+        # Operator call hierarchy inside the region. Stacked as nested slices on the
+        # same track, the unified key becomes the root of the flame graph.
         for c in r.op_tree:
             ev.append({"ph": "X", "name": c["name"], "cat": "op",
                        "ts": round(r.ts_us + c["off_us"], 3),
@@ -152,16 +152,16 @@ def build(trace: Trace, pid: int = 1,
                        "args": {"depth": c["depth"], "region": name,
                                 **({"clamped": True} if c.get("clamped") else {})}})
 
-    # 모델 단위 측정값은 구간에 귀속되지 않으므로 마커 하나로 내보낸다.
+    # Model-level values belong to no region, so emit them as one marker.
     summary = _summary(trace)
     if summary:
         t0 = min((r.ts_us for r in trace.regions), default=0.0)
         ev.append({"ph": "M", "name": "thread_name", "pid": pid, "tid": 0,
-                   "args": {"name": "xnn 요약"}})
-        ev.append({"ph": "i", "name": "xnn 신규 측정 항목", "cat": "xnn", "s": "p",
+                   "args": {"name": "xnn summary"}})
+        ev.append({"ph": "i", "name": "xnn model metrics", "cat": "xnn", "s": "p",
                    "ts": round(t0, 3), "pid": pid, "tid": 0, "args": summary})
 
-    # 타임스텝별 발화율을 카운터로 — 시간축에 걸쳐 그래프가 된다.
+    # Per-timestep firing rate as counters, plotted along the time axis.
     for sp in trace.spikes:
         series = (sp.metrics or {}).get("per_timestep_rate") or []
         base = [r for r in trace.regions if r.layer_id == sp.layer_id]
@@ -172,11 +172,11 @@ def build(trace: Trace, pid: int = 1,
                        "ts": round(ts, 3), "pid": pid,
                        "args": {"rate": round(float(rate), 6)}})
 
-    # 실행 전체의 연산 계층. 별도 pid라 레이어 트랙과 섞이지 않는다.
+    # Op hierarchy of the whole run, on its own pid so it stays apart from layer tracks.
     if full:
         ev.extend(full)
 
-    # 같은 시각이면 긴 슬라이스가 먼저 와야 중첩 관계가 유지된다.
+    # At equal timestamps the longer slice must come first to keep nesting intact.
     ev.sort(key=lambda e: (e.get("ts", -1), 0 if e["ph"] == "M" else 1,
                            -e.get("dur", 0)))
     return {

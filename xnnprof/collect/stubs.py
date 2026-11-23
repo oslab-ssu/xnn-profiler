@@ -1,23 +1,14 @@
-"""아직 연결되지 않은 수집기들. 인터페이스 계약과 귀속 한계를 미리 선언한다.
+"""Collectors not yet wired in. They declare the interface contract and attribution limit up front.
 
-조용히 빠지지 않고 출처(sources)에 'unavailable'로 남는다 — 도구 한계와
-실제 누락을 구분하기 위한 것이다.
+They never drop out silently; each is recorded in `sources` as 'unavailable' so that
+a tool limitation can be told apart from a genuinely missing measurement.
 """
 
 from __future__ import annotations
 
 import shutil
 
-from .base import PROCESS_GLOBAL, REGION, STATIC_NAME, Unimplemented
-
-
-class PerfCollector(Unimplemented):
-    name = "perf"
-    attribution = PROCESS_GLOBAL
-    capabilities = ("cycles", "instructions", "ipc", "cache_misses", "page_faults")
-
-    def available(self):
-        return (True, "ok") if shutil.which("perf") else (False, "perf 미설치")
+from .base import REGION, STATIC_NAME, Unimplemented
 
 
 class NcuCollector(Unimplemented):
@@ -26,7 +17,7 @@ class NcuCollector(Unimplemented):
     capabilities = ("kernel_counters", "occupancy", "memory_bandwidth")
 
     def available(self):
-        return (True, "ok") if shutil.which("ncu") else (False, "ncu 미설치")
+        return (True, "ok") if shutil.which("ncu") else (False, "ncu not installed")
 
 
 class MlirStaticCollector(Unimplemented):
@@ -35,7 +26,7 @@ class MlirStaticCollector(Unimplemented):
     capabilities = ("ir_op_counts", "static_memory", "lowering_expansion")
 
     def available(self):
-        return False, "컴파일 산출물 경로 미지정 (.mlir / .ll)"
+        return False, "no compiler output path given (.mlir / .ll)"
 
 
-ALL = (PerfCollector, NcuCollector, MlirStaticCollector)
+ALL = (NcuCollector, MlirStaticCollector)

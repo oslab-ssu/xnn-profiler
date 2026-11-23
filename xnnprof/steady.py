@@ -1,20 +1,20 @@
-"""정상상태 도달 스텝 — 스파이크 패턴이 더 이상 바뀌지 않는 타임스텝.
+"""Steady-state step: the timestep after which the spike pattern stops changing.
 
-발화율 평균으로는 알 수 없는 값이다. 발화율이 일정해도 발화하는 뉴런의 조합은
-매 스텝 달라질 수 있으므로, 패턴 자체를 직접 비교해야 한다.
+Mean firing rate cannot show this. Even at a constant rate, the set of firing neurons
+can change every step, so the patterns themselves must be compared.
 
     d_t = mean( s_t != s_{t-1} ),        t = 1 .. T-1
-    c_t = d_t / (2·r̄·(1-r̄))              두 패턴이 독립일 때의 기댓값으로 정규화
-    도달 스텝 = min { t : 모든 u >= t 에 대하여 c_u <= θ },   θ = 0.1
+    c_t = d_t / (2·r̄·(1-r̄))              normalized by the expectation for independent patterns
+    reached step = min { t : c_u <= θ for all u >= t },   θ = 0.1
 
-`c_t`는 세 구간으로 읽는다. 0 부근은 패턴이 고정된 것, 1 부근은 매 스텝 독립으로
-뽑은 것과 다름이 없는 것, 1 초과는 연속한 스텝이 서로 반대로 가는 교대 패턴이다.
+Read `c_t` in three bands: near 0 the pattern is fixed, near 1 it is no different from
+drawing independently each step, and above 1 consecutive steps alternate.
 
-정규화 분모 `2·r̄·(1-r̄)`는 모든 뉴런이 같은 확률 r̄로 발화하는 균질 베르누이
-모델을 기준으로 삼는다. 뉴런마다 발화 확률이 다르면 이 값은 실제 독립 기준보다
-크다 — x(1-x)가 오목이므로 mean(2·p_i·(1-p_i)) <= 2·r̄·(1-r̄) 이기 때문이다.
-dead·saturated 뉴런이 많은 레이어에서 차이가 크고, 기준 모델에 따라 판정이
-갈릴 수 있다. 그래서 뉴런별 발화율로 정규화한 값도 함께 산출한다.
+The denominator `2·r̄·(1-r̄)` assumes a homogeneous Bernoulli model where every neuron
+fires with the same probability r̄. When per-neuron probabilities differ, this exceeds
+the true independence baseline: x(1-x) is concave, so mean(2·p_i·(1-p_i)) <= 2·r̄·(1-r̄).
+The gap is large for layers with many dead or saturated neurons, and the verdict can
+depend on the baseline model. The per-neuron-normalized value is therefore reported too.
 """
 
 from __future__ import annotations
@@ -25,48 +25,48 @@ DEFAULT_THRESHOLD = 0.1
 
 
 def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
-    """`[T, batch, neurons...]` 이진 배열에서 산출한다.
+    """Compute from a `[T, batch, neurons...]` binary array.
 
-    r̄이 0 또는 1이면 정규화 분모가 0이 되어 정의되지 않는다. 한 번도 발화하지
-    않은 레이어와 항상 발화한 레이어가 그렇고, 그때는 `reached_step`을 두지 않고
-    사유를 남긴다. 값이 0인 것과 정의되지 않는 것은 다르다.
+    If r̄ is 0 or 1 the denominator is 0 and the value is undefined (a layer that never
+    fires or always fires). In that case `reached_step` is omitted and a reason is
+    recorded. A value of 0 and an undefined value are different.
     """
     import numpy as np
 
     a = np.asarray(array)
     if a.ndim < 2:
-        raise ValueError(f"[time, ...] 2차원 이상 필요: {a.shape}")
+        raise ValueError(f"need at least 2 dims [time, ...]: {a.shape}")
     flat = a.reshape(len(a), -1)
     T = int(flat.shape[0])
 
     out: dict[str, Any] = {
         "timesteps": T,
         "threshold": float(threshold),
-        "unit": "타임스텝 인덱스 (0부터)",
+        "unit": "timestep index (0-based)",
     }
     if T < 2:
-        out["reason"] = "타임스텝이 2개 미만이라 연속 비교 대상이 없음"
+        out["reason"] = "fewer than 2 timesteps; nothing to compare consecutively"
         return out
 
     rbar = float(flat.mean())
     out["mean_rate"] = round(rbar, 6)
     denom = 2.0 * rbar * (1.0 - rbar)
     if denom <= 0.0:
-        out["reason"] = ("발화율이 0 또는 1이라 정규화 분모가 0 — "
-                         "패턴 변화량을 독립 기댓값과 비교할 수 없음")
+        out["reason"] = ("firing rate is 0 or 1, so the denominator is 0; "
+                         "pattern change cannot be compared to the independence expectation")
         return out
 
     d = (flat[1:] != flat[:-1]).mean(axis=1)
     out["d_t"] = [round(float(v), 6) for v in d]
     out["c_t_from_step"] = 1
-    out["baseline"] = "균질 베르누이 2·r̄·(1-r̄)"
+    out["baseline"] = "homogeneous Bernoulli 2·r̄·(1-r̄)"
 
     def judge(c) -> Optional[int]:
-        """뒤에서부터 θ를 넘는 지점을 찾는다. 그 다음 스텝이 도달 스텝이다."""
+        """Scan backwards for the last value above θ; the step after it is the reached step."""
         step = 1
         for i in range(len(c) - 1, -1, -1):
             if c[i] > threshold:
-                step = i + 2         # c[i]는 c_{i+1} 이므로 그 다음 스텝
+                step = i + 2         # c[i] is c_{i+1}, so take the next step
                 break
         return step if step <= T - 1 else None
 
@@ -76,9 +76,9 @@ def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
     out["c_t_max"] = round(float(c.max()), 6)
     out["reached_step"] = judge(c)
     if out["reached_step"] is None:
-        out["reason"] = f"마지막 스텝까지 c_t > {threshold} — 미도달"
+        out["reason"] = f"c_t > {threshold} through the last step; not reached"
 
-    # 뉴런별 발화율을 기준으로 한 분모. 판정이 기준 모델에 좌우되는지 본다.
+    # Per-neuron denominator, to see whether the verdict depends on the baseline model.
     if a.ndim >= 3:
         p = a.mean(axis=(0, 1))
         den_n = float((2.0 * p * (1.0 - p)).mean())
@@ -94,7 +94,7 @@ def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
 
 
 def derive(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
-    """산출 실패를 측정 실패로 번지게 하지 않는다."""
+    """Do not let a computation failure turn into a measurement failure."""
     try:
         return steady_state(array, threshold)
     except Exception as e:                                   # noqa: BLE001

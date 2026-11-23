@@ -50,6 +50,7 @@ tools/xnnprof --model fcsnn --device cuda --weights weights --out out-gpu
 | `--nsys` | Disabled | Run profiling under `nsys profile` and automatically merge the generated report into the trace |
 | `--with-stack` | Disabled | Capture Python call stacks. Increases execution-wide track depth from 6 to 19, output file size by approximately 3x, and execution time by 2.5–3.4x |
 | `--no-op-tree` | Disabled | Disable the operator call hierarchy within profiling regions. The operator hierarchy is required for Flame Graph visualization |
+| `--perf N` | `0` | Count N uninstrumented forward passes with `perf stat`. Linux only; process-wide values (see below) |
 
 ### Comparing CPU and CUDA Results
 
@@ -181,7 +182,7 @@ The trace contains the following information:
 | `args.gpu` | GPU kernel execution time, kernel count, and top kernels for each region. Available only after merging with `tools/nsys_merge` |
 | Nested slices | Operator call hierarchy within each profiling region. The unified profiling key serves as the Flame Graph root |
 | `Execution-wide` process | Full operator execution hierarchy, including operations outside registered profiling regions. Stored in a separate process to avoid mixing with layer-level tracks |
-| `xnn summary` markers | Model-level metrics, including output latency, state memory, attribution ratio, and weight fingerprint |
+| `xnn summary` markers | Model-level metrics, including output latency, state memory, attribution ratio, weight fingerprint, and the GPU device name (`gpu_name`, kept separate from the per-region `args.gpu` dict) |
 | Top-level `xnn` key | Aggregated region statistics, layer summaries, spike references, and data collector metadata. Not directly consumed by visualization tools |
 
 ## Nsight Systems Report Merging
@@ -211,6 +212,18 @@ tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 When an `.nsys-rep` file is provided, a corresponding `.sqlite` file is generated alongside it.
 
 If the `.sqlite` file already exists, report merging can be performed without Nsight Systems installed. This allows trace processing on a different machine from the one used for profiling.
+
+## Hardware Counters with perf (Linux)
+
+`--perf N` runs N extra forward passes with hooks and the profiler detached, and counts them with `perf stat` (cycles, instructions, cache references/misses, branches/misses, page faults, context switches, task clock). The counting window is opened and closed through `perf stat --control`, so perf start-up is excluded.
+
+```bash
+tools/xnnprof --model fcsnn --train 0 --weights weights --device cpu --perf 50 --out out-perf
+```
+
+perf counts per process, so the values are **process-wide** and are not attributed to layers or regions (`attribution: process-global`). They are recorded in the `perf` entry of `sources` (top-level `xnn` key), both as totals and per forward, together with IPC and miss rates.
+
+Requirements: Linux, `perf` on `PATH`, and `kernel.perf_event_paranoid` of 2 or lower (or root). Without `--perf`, or when these are not met, the `perf` source is recorded as `unavailable` with the reason.
 
 ## Profiling Overhead
 

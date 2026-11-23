@@ -1,4 +1,4 @@
-"""통일 프로파일 포맷 xnn.trace. 모든 수집기가 이 스키마로 정규화해 반환한다."""
+"""Unified profile format xnn.trace. Every collector normalizes its output to this schema."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ DENSE, SPIKE, STATE = "dense", "spike", "state"
 
 @dataclass
 class Region:
-    """(layer_id, timestep) 시간 구간. 도구 간 상관 키다."""
+    """(layer_id, timestep) time region. The correlation key across tools."""
     region_id: int
     layer_id: str
     timestep: Optional[int]
@@ -22,11 +22,11 @@ class Region:
     dur_us: float
     domain: str = DENSE
     parent_id: Optional[int] = None
-    ops: dict[str, float] = field(default_factory=dict)   # op 이름 -> self time (us)
-    # 구간 안의 연산자 호출 계층. 라벨 시작 시각 대비 상대 오프셋이므로 시계
-    # 정합이 필요 없다. {name, depth, off_us, dur_us}
+    ops: dict[str, float] = field(default_factory=dict)   # op name -> self time (us)
+    # Operator call hierarchy inside the region. Offsets are relative to the label
+    # start, so no clock alignment is needed. {name, depth, off_us, dur_us}
     op_tree: list[dict[str, Any]] = field(default_factory=list)
-    gpu: dict[str, Any] = field(default_factory=dict)     # Nsight Systems 투영값
+    gpu: dict[str, Any] = field(default_factory=dict)     # projected from Nsight Systems
 
 
 @dataclass
@@ -60,7 +60,7 @@ class SpikeRef:
 
 @dataclass
 class MembraneRef:
-    """막전위 분포 관측 산출물 참조. `[T, 66]` 히스토그램 칸 개수."""
+    """Reference to the membrane-potential observation file. `[T, 66]` histogram bin counts."""
     layer_id: str
     path: str
     sha256: str = ""
@@ -72,10 +72,11 @@ class MembraneRef:
 
 @dataclass
 class Source:
-    """수집기 1종의 출처 선언.
+    """Provenance declaration for one collector.
 
-    attribution은 그 도구가 '원리적으로' 어느 단위까지 귀속 가능한지다.
-    perf는 프로세스 전역이므로 레이어 귀속이 불가하고, 그걸 숨기면 거짓 수치가 된다.
+    `attribution` is the finest unit the tool can attribute to *in principle*.
+    perf is process-global, so it cannot be attributed to layers; hiding that
+    would produce false numbers.
     """
     collector: str
     status: str = "unavailable"           # captured | partial | unavailable | failed
@@ -134,8 +135,8 @@ class Trace:
     def load(path: str) -> "Trace":
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
-        # 내보내는 파일은 Chrome Trace Event JSON 하나뿐이고, 우리 쪽 내용은
-        # 그 안의 확장 키 `xnn`에 들어 있다. 어느 쪽을 줘도 읽는다.
+        # The only output file is a Chrome Trace Event JSON; our content lives in
+        # its `xnn` extension key. Accept either form.
         if "traceEvents" in d and isinstance(d.get("xnn"), dict):
             d = d["xnn"]
         d.pop("schema", None), d.pop("version", None)

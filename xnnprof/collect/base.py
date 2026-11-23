@@ -1,4 +1,4 @@
-"""수집기 인터페이스. 모든 도구는 이 뒤에 두고, 통일 포맷만 바깥에 노출한다."""
+"""Collector interface. Every tool sits behind it; only the unified format is exposed."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class Collector:
     capabilities: tuple[str, ...] = ()
 
     def available(self) -> tuple[bool, str]:
-        return False, "미구현"
+        return False, "not implemented"
 
     def collect(self, trace: Trace, **kw: Any) -> Source:
         raise NotImplementedError
@@ -30,9 +30,9 @@ class Collector:
 
 
 class Unimplemented(Collector):
-    """인터페이스 계약만 선언된 수집기. 조용히 건너뛰지 않고 출처에 남는다."""
+    """Collector with only its interface contract declared. It is recorded in sources instead of being skipped silently."""
 
     def collect(self, trace: Trace, **kw: Any) -> Source:
         ok, why = self.available()
         return self.declare("unavailable",
-                            "어댑터 미구현 (도구는 사용 가능)" if ok else why)
+                            "adapter not implemented (tool is available)" if ok else why)

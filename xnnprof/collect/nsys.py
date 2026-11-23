@@ -1,20 +1,20 @@
-"""Nsight Systems 수집기 — NVTX 범위에 GPU 커널을 투영해 구간에 넣는다.
+"""Nsight Systems collector: projects GPU kernels onto NVTX ranges and into regions.
 
-hook이 통합 키 문자열 `fc1@t3`을 NVTX 범위로 남기므로, 리포트에서 그 이름을
-찾으면 어느 구간인지 바로 정해진다. 시계 원점을 맞출 필요가 없다.
+Hooks emit the unified key string `fc1@t3` as an NVTX range, so finding that name in
+the report identifies the region directly. No clock alignment is needed.
 
-투영 규칙은 nsys의 `nvtx_gpu_proj_sum`과 같다. NVTX 범위 안에서 호출된 CUDA
-런타임 API가 발행한 커널을 그 범위의 몫으로 본다. 커널은 비동기로 실행되므로
-커널의 실행 시각이 범위 안에 있는지로 판정하면 안 된다 — 범위가 끝난 뒤에
-실행되는 커널이 정상이다.
+The projection rule matches nsys `nvtx_gpu_proj_sum`: kernels launched by CUDA runtime
+API calls made inside an NVTX range belong to that range. Kernels run asynchronously,
+so checking whether kernel execution time falls inside the range is wrong; kernels
+normally run after the range has ended.
 
-    NVTX_EVENTS                      범위 이름과 [start, end), 스레드
-    CUPTI_ACTIVITY_KIND_RUNTIME      런타임 API 호출. correlationId를 들고 있다
-    CUPTI_ACTIVITY_KIND_KERNEL       커널 실행. 같은 correlationId로 이어진다
+    NVTX_EVENTS                      range name, [start, end), thread
+    CUPTI_ACTIVITY_KIND_RUNTIME      runtime API calls, carrying correlationId
+    CUPTI_ACTIVITY_KIND_KERNEL       kernel executions, linked by the same correlationId
 
-리포트(`.nsys-rep`)는 SQLite로 내보낸 뒤 직접 읽는다. `nsys stats`의 표를
-파싱하지 않는 이유는 열 이름과 단위가 버전마다 달라지기 때문이다. 이미
-`.sqlite`가 있으면 nsys 없이도 병합된다.
+The report (`.nsys-rep`) is exported to SQLite and read directly. Tables from `nsys stats`
+are not parsed because column names and units change between versions. If a
+`.sqlite` already exists, merging works without nsys installed.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from ..schema import Trace
 from .base import Collector, REGION
 from .torch_prof import LABEL
 
-PROJECTION = "launch-in-range"      # 범위 안에서 발행된 커널을 그 범위의 몫으로
+PROJECTION = "launch-in-range"      # kernels launched inside a range belong to it
 
 QUERY = """
 SELECT n.text, s.value, COUNT(*), SUM(k.end - k.start),
@@ -48,10 +48,10 @@ TOTAL_KERNEL = "SELECT SUM(end - start), COUNT(*) FROM CUPTI_ACTIVITY_KIND_KERNE
 
 
 def nsys_bin() -> str:
-    """`nsys` 실행 파일. PATH에 없으면 환경변수 `NSYS`로 지정한다.
+    """The `nsys` executable. If not on PATH, set the `NSYS` environment variable.
 
-    Windows 설치본은 PATH에 등록되지 않고, Nsight Compute에 딸려 오는 동명의
-    바이너리는 리포트를 만들지 못한다. 경로를 직접 줄 수단이 필요하다.
+    The Windows install is not added to PATH, and the same-named binary shipped with
+    Nsight Compute cannot produce reports, so a way to give the path explicitly is needed.
     """
     env = os.environ.get("NSYS", "").strip('"')
     if env and os.path.exists(env):
@@ -60,31 +60,31 @@ def nsys_bin() -> str:
 
 
 def sqlite_for(report: str, export: bool = True) -> tuple[str, str]:
-    """리포트에 대응하는 `.sqlite` 경로. 없으면 `nsys export`로 만든다."""
+    """`.sqlite` path for a report, created with `nsys export` if missing."""
     if report.endswith(".sqlite"):
-        return (report, "") if os.path.exists(report) else ("", f"{report} 없음")
+        return (report, "") if os.path.exists(report) else ("", f"{report} missing")
     if not os.path.exists(report):
-        return "", f"{report} 없음"
+        return "", f"{report} missing"
     db = os.path.splitext(report)[0] + ".sqlite"
-    # 리포트를 다시 떴는데 옛 sqlite 가 남아 있으면 지난 측정을 병합하게 된다.
-    # 조용히 틀린 수치가 나오므로 더 오래된 db 는 다시 내보낸다.
+    # If the report was re-captured but an old sqlite remains, the previous run would be
+    # merged, silently giving wrong numbers. Re-export any db older than the report.
     if os.path.exists(db) and os.path.getmtime(db) >= os.path.getmtime(report):
         return db, ""
     if not export:
-        stale = "리포트보다 오래됨" if os.path.exists(db) else "없음"
-        return "", f"{db} {stale} (export 생략)"
+        stale = "older than report" if os.path.exists(db) else "missing"
+        return "", f"{db} {stale} (export skipped)"
     nsys = nsys_bin()
     if not nsys:
-        return "", (f"{db} 가 없고 nsys 도 찾지 못해 export 불가 — "
-                    "PATH에 넣거나 환경변수 NSYS로 경로를 준다")
+        return "", (f"{db} is missing and nsys was not found, cannot export; "
+                    "put it on PATH or set the NSYS environment variable")
     cmd = [nsys, "export", "--type", "sqlite", "--force-overwrite", "true",
            "-o", db, report]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     except Exception as e:                                   # noqa: BLE001
-        return "", f"nsys export 실패: {type(e).__name__}: {e}"
+        return "", f"nsys export failed: {type(e).__name__}: {e}"
     if p.returncode != 0 or not os.path.exists(db):
-        return "", f"nsys export 실패 (rc={p.returncode}): {p.stderr.strip()[:200]}"
+        return "", f"nsys export failed (rc={p.returncode}): {p.stderr.strip()[:200]}"
     return db, ""
 
 
@@ -100,19 +100,19 @@ class NsysCollector(Collector):
 
     def available(self) -> tuple[bool, str]:
         if not self.report:
-            return False, "리포트 경로 미지정 (--nsys-report)"
+            return False, "no report path given (--nsys-report)"
         db, why = sqlite_for(self.report, export=False)
         if db:
             return True, "ok"
         if nsys_bin():
-            return True, "ok (export 필요)"
+            return True, "ok (export needed)"
         return False, why
 
     def collect(self, trace: Trace, **kw: Any):
         import sqlite3
 
         if not self.report:
-            return self.declare("unavailable", "리포트 경로 미지정 (--nsys-report)")
+            return self.declare("unavailable", "no report path given (--nsys-report)")
         db, why = sqlite_for(self.report, self.export)
         if not db:
             return self.declare("unavailable", why)
@@ -164,12 +164,12 @@ class NsysCollector(Collector):
         in_us = in_ranges / 1000.0
         return self.declare(
             "captured" if matched else "partial",
-            "" if matched else "리포트의 NVTX 범위가 구간 목록과 맞지 않음",
+            "" if matched else "NVTX ranges in the report do not match the region list",
             sqlite=db, projection=PROJECTION,
             nvtx_ranges=len(per), matched_regions=matched,
             kernel_us_in_ranges=round(in_us, 3),
             kernel_us_total=round(total_us, 3),
             kernels_total=int(total_n or 0),
             in_range_fraction=round(in_us / total_us, 6) if total_us else 0.0,
-            note=("범위 밖 커널은 워밍업·학습·정확도 평가 등 측정 구간이 아닌 "
-                  "실행의 몫이다. 캡처는 프로세스 전체를 감싼다"))
+            note=("kernels outside ranges belong to non-measured execution such as warm-up, "
+                  "training, and accuracy evaluation; the capture wraps the whole process"))

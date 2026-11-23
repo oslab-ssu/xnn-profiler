@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""xnnprof — DNN·SNN·혼합 모델을 하나의 축에서 측정하고 통일 포맷으로 기록한다.
+"""xnnprof: measure DNN, SNN, and hybrid models on one axis and write the unified format.
 
   tools/xnnprof --model repeated_dnn_snn --steps 10 --batch 64 --train 12000
   tools/xnnprof --model all --steps 10 --batch 64 --train 6000
   tools/xnnprof --model all --data ../profiler-verification/data
 
-GPU에서는 NVTX 라벨이 자동으로 켜진다. Nsight Systems까지 한 번에 묶으려면
+On GPU, NVTX labels are enabled automatically. To include Nsight Systems in one step:
 
   tools/xnnprof --model fcsnn --device cuda --nsys
 
-측정과 병합을 두 명령으로 나눠도 된다. 리포트는 프로세스가 끝난 뒤에 쓰이므로
-측정하는 자기 자신은 그 파일을 읽을 수 없다 — `--nsys`는 그래서 자기를 nsys로
-다시 띄우고, 자식이 끝나 리포트가 생긴 뒤에 병합한다.
+Measurement and merge can also be two commands. The report is written after the process
+exits, so the measuring process itself cannot read it; `--nsys` therefore relaunches
+itself under nsys and merges once the child has exited and the report exists.
 
   nsys profile -t cuda,nvtx -o out/fcsnn/nsys \
       python tools/xnnprof --model fcsnn --device cuda --out out
@@ -27,8 +27,8 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-# 출력이 파이프로 가면 Windows에서 인코딩이 cp949로 떨어져 한글·기호에서
-# UnicodeEncodeError가 난다 (nsys profile 아래에서 실행할 때). UTF-8로 고정한다.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -40,77 +40,89 @@ from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
 
 
-REENTRY = "XNN_UNDER_NSYS"      # 자식에게 '이미 nsys 아래'라고 알리는 표시
+REENTRY = "XNN_UNDER_NSYS"      # tells the child it is already running under nsys
 
 
 def run_under_nsys(args, argv: list[str]) -> int:
-    """자기 자신을 `nsys profile`로 다시 띄우고, 끝난 뒤 리포트를 병합한다.
+    """Relaunch this script under `nsys profile`, then merge the report when it ends.
 
-    리포트는 감싼 프로세스가 종료된 뒤에 쓰인다. 측정하는 쪽이 자기 리포트를
-    읽는 것은 원리적으로 불가능하므로, 바깥에 한 겹을 두고 자식이 끝난 다음에
-    병합한다. 사용자에게는 한 명령이다.
+    The report is written after the wrapped process exits. The measuring process cannot
+    read its own report in principle, so an outer layer merges after the child exits.
+    To the user it is a single command.
     """
     import subprocess
+    import time
     from xnnprof.collect.nsys import NsysCollector, nsys_bin
     from xnnprof.emit import trace_json
     from xnnprof.emit.full_trace import extract
     from xnnprof.schema import Trace
 
     if args.model == "all":
-        print("--nsys 는 모델 하나에만 쓴다. NVTX 범위 이름이 모델 사이에서 "
-              "겹쳐(lif1@t0 등) 어느 모델의 커널인지 구분되지 않는다.",
+        print("--nsys works with a single model only. NVTX range names overlap between "
+              "models (lif1@t0 etc.), so kernels could not be told apart by model.",
               file=sys.stderr)
         return 1
     nsys = nsys_bin()
     if not nsys:
-        print("nsys 를 찾지 못했다. PATH에 넣거나 환경변수 NSYS로 경로를 준다.\n"
-              "  Nsight Compute 에 딸려 오는 동명의 바이너리는 리포트를 만들지 "
-              "못하므로 Nsight Systems 쪽 경로를 써야 한다.", file=sys.stderr)
+        print("nsys not found. Put it on PATH or set the NSYS environment variable.\n"
+              "  The same-named binary shipped with Nsight Compute cannot produce "
+              "reports; use the Nsight Systems path.", file=sys.stderr)
         return 1
 
     out_dir = os.path.join(args.out, args.model)
     os.makedirs(out_dir, exist_ok=True)
     report = os.path.join(out_dir, "nsys")
     if not os.path.abspath(report).isascii():
-        print(f"경고: 경로에 ASCII 가 아닌 문자가 있다 — nsys 가 실패할 수 있다.\n"
+        print(f"warning: the path contains non-ASCII characters; nsys may fail.\n"
               f"  {os.path.abspath(report)}\n"
-              f"  Windows 라면 subst 로 ASCII 드라이브를 만들어 거기서 실행한다.",
+              f"  On Windows, map an ASCII drive with subst and run from there.",
               file=sys.stderr)
 
     child = [a for a in argv if a != "--nsys"]
     cmd = [nsys, "profile", "-t", "cuda,nvtx", "-o", report,
            "--force-overwrite", "true",
            sys.executable, os.path.abspath(__file__)] + child
-    print(f"[1/2] nsys profile -> {report}.nsys-rep")
-    rc = subprocess.run(cmd, env=dict(os.environ, **{REENTRY: "1"})).returncode
-    if rc != 0:
-        print(f"측정이 0이 아닌 값으로 끝났다 (rc={rc})", file=sys.stderr)
-
     trace_path = os.path.join(out_dir, "xnn-trace.json")
     rep = report + ".nsys-rep"
-    if not os.path.exists(trace_path) or not os.path.exists(rep):
-        print(f"병합할 수 없다 — 트레이스 {os.path.exists(trace_path)}, "
-              f"리포트 {os.path.exists(rep)}", file=sys.stderr)
+    print(f"[1/2] nsys profile -> {rep}")
+    started = time.time()
+    rc = subprocess.run(cmd, env=dict(os.environ, **{REENTRY: "1"})).returncode
+
+    # Success is judged by the artifacts this run wrote, not by the exit code. On Windows
+    # the child can exit with 0xC0000409 during shutdown after writing everything. File
+    # mtimes are checked so leftovers from an earlier run are not mistaken for this one.
+    def fresh(p: str) -> bool:
+        return os.path.exists(p) and os.path.getmtime(p) >= started - 1.0
+
+    ok_trace, ok_rep = fresh(trace_path), fresh(rep)
+    if rc != 0:
+        state = "all artifacts written; continuing with merge" if ok_trace and ok_rep \
+            else "artifacts missing"
+        print(f"measured process exit code {rc} ({rc & 0xFFFFFFFF:#010x}): {state}",
+              file=sys.stderr)
+    if not (ok_trace and ok_rep):
+        print(f"cannot merge: trace from this run {ok_trace}, "
+              f"report {ok_rep}", file=sys.stderr)
         return 1
 
-    print(f"\n[2/2] 병합 {rep}")
+    print(f"\n[2/2] merge {rep}")
     trace = Trace.load(trace_path)
-    full = extract(trace_path)          # 실행 전체 트랙은 xnn 키에 없다
+    full = extract(trace_path)          # the full-run track is not in the xnn key
     src = NsysCollector(rep).collect(trace)
     trace.sources = [s for s in trace.sources if s.collector != src.collector]
     trace.sources.append(src)
     trace_json.write(trace, trace_path, full=full)
     d = src.detail or {}
-    print(f"  {src.status}  NVTX 범위 {d.get('nvtx_ranges')}개 / 구간 "
-          f"{d.get('matched_regions')}개에 병합  "
-          f"범위 안 커널 {d.get('kernel_us_in_ranges', 0):,.1f}us "
+    print(f"  {src.status}  merged {d.get('nvtx_ranges')} NVTX ranges into "
+          f"{d.get('matched_regions')} regions  "
+          f"kernels in ranges {d.get('kernel_us_in_ranges', 0):,.1f}us "
           f"({d.get('in_range_fraction', 0):.1%})")
     print(f"\n-> {trace_path}")
     return 0 if src.status in ("captured", "partial") else 1
 
 
 def default_data() -> str:
-    """MNIST 기본 위치. 저장소 안에 없으면 옆의 profiler-verification/data를 본다."""
+    """Default MNIST location: data/ in the repo, else the sibling profiler-verification/data."""
     here = os.path.join(REPO, "data")
     if os.path.isdir(os.path.join(here, "MNIST")):
         return here
@@ -132,8 +144,8 @@ def mnist(batch: int, n: int, train: bool, root: str, raw: bool,
                             transform=transforms.Compose(steps))
     except RuntimeError as e:
         raise SystemExit(
-            f"MNIST를 {os.path.abspath(root)} 에서 찾지 못했다. "
-            f"--data 로 위치를 지정하거나 --download 를 준다.\n  {e}")
+            f"MNIST not found in {os.path.abspath(root)}. "
+            f"Pass --data with its location or --download.\n  {e}")
     if n and n < len(ds):
         ds = torch.utils.data.Subset(ds, range(n))
     return torch.utils.data.DataLoader(ds, batch_size=batch, shuffle=False)
@@ -150,43 +162,47 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--train", type=int, default=6000)
     ap.add_argument("--data", default=default_data(),
-                    help="MNIST 위치. 기본값은 저장소의 data/, 없으면 "
-                         "옆의 profiler-verification/data")
+                    help="MNIST location. Defaults to data/ in the repo, else "
+                         "the sibling profiler-verification/data")
     ap.add_argument("--download", action="store_true",
-                    help="--data 에 없으면 내려받는다")
+                    help="download into --data if missing")
     ap.add_argument("--raw-input", action="store_true")
     ap.add_argument("--out", default="out")
     ap.add_argument("--weights", default="",
-                    help="가중치 디렉터리. 파일이 있으면 불러 쓰고 없으면 학습 후 저장한다. "
-                         "장치를 바꿔 가며 같은 모델을 측정할 때 쓴다")
+                    help="weights directory. Loads files that exist, otherwise trains and saves. "
+                         "Use it to measure the same model on different devices")
     ap.add_argument("--device", default="cpu",
-                    help="cpu | cuda. cuda에서는 NVTX 라벨을 함께 내보낸다")
+                    help="cpu | cuda. On cuda, NVTX labels are emitted too")
     ap.add_argument("--no-torch-profiler", action="store_true",
-                    help="PyTorch Profiler 없이 hook만으로 측정한다. 연산을 여러 개 "
-                         "쏘는 모듈은 op당 프로파일러 비용이 누적되므로, 레이어별 "
-                         "시간을 볼 때나 nsys로 쌀 때는 끈다")
+                    help="measure with hooks only, without PyTorch Profiler. Modules that "
+                         "launch many ops accumulate per-op profiler cost, so turn it off "
+                         "when looking at per-layer time or wrapping with nsys")
     ap.add_argument("--sync-regions", action="store_true",
-                    help="GPU: 구간 경계마다 동기화해 레이어별 실제 GPU 시간을 잰다. "
-                         "레이어 간 겹침이 사라지므로 합계는 실행 시간보다 길어진다")
+                    help="GPU: sync at every region boundary to time each layer's real GPU "
+                         "time. Overlap between layers disappears, so the total exceeds run time")
     ap.add_argument("--cover-leaves", action="store_true",
-                    help="자식이 없는 모든 모듈에 계측 지점을 삽입한다")
+                    help="instrument every module without children")
     ap.add_argument("--no-membrane", action="store_true",
-                    help="막전위 분포를 산출하지 않는다. 뉴런 모듈 호출마다 "
-                         "히스토그램 커널 2개가 추가되므로, 계측 비용을 "
-                         "비교할 때 끈다")
+                    help="do not compute the membrane distribution. Each neuron module "
+                         "call adds two histogram kernels, so turn it off when "
+                         "comparing instrumentation cost")
     ap.add_argument("--no-full-trace", action="store_true",
-                    help="실행 전체의 연산 계층을 얹지 않는다. 등록된 구간 밖에서 "
-                         "무엇이 돌았는지가 빠지고 파일이 작아진다")
+                    help="do not overlay the full-run op hierarchy. What ran outside "
+                         "registered regions is dropped and the file gets smaller")
     ap.add_argument("--nsys", action="store_true",
-                    help="측정을 nsys profile 로 감싸고 끝난 뒤 리포트를 구간에 "
-                         "병합한다. 한 명령으로 끝남. 모델 하나에만 쓸 수 있음")
+                    help="wrap the measurement in nsys profile and merge the report into "
+                         "regions afterwards. One command. Single model only")
     ap.add_argument("--with-stack", action="store_true",
-                    help="파이썬 호출 스택까지 기록한다. 실행 전체 트랙의 깊이가 "
-                         "6에서 20단계 이상으로 늘고 파일이 3~4배가 된다. "
-                         "계측 비용도 함께 늘므로 시간을 볼 때는 끈다")
+                    help="record Python call stacks too. The full-run track grows from "
+                         "6 to 20+ levels and the file grows 3-4x. "
+                         "Instrumentation cost rises too, so leave off when timing")
     ap.add_argument("--no-op-tree", action="store_true",
-                    help="구간 안의 연산자 호출 계층을 내보내지 않는다. "
-                         "중첩 슬라이스가 빠지면 Flame Graph가 그려지지 않는다")
+                    help="do not emit the operator call hierarchy inside regions. "
+                         "Without nested slices the flame graph cannot be drawn")
+    ap.add_argument("--perf", type=int, default=0, metavar="N",
+                    help="count N forwards (hooks and profiler detached) with perf stat. "
+                         "Values are process-wide and not attributed to layers. Linux only, "
+                         "needs kernel.perf_event_paranoid<=2")
     args = ap.parse_args()
 
     if args.nsys and not os.environ.get(REENTRY):
@@ -195,7 +211,7 @@ def main() -> int:
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
     dev = args.device
     if dev.startswith("cuda") and not torch.cuda.is_available():
-        print("CUDA를 사용할 수 없다 — nvidia-smi와 torch.version.cuda를 확인한다",
+        print("CUDA is not available; check nvidia-smi and torch.version.cuda",
               file=sys.stderr)
         return 1
     if dev == "cpu":
@@ -231,7 +247,7 @@ def main() -> int:
                         membrane=not args.no_membrane,
                         op_tree=not args.no_op_tree,
                         full_trace=not args.no_full_trace,
-                        with_stack=args.with_stack,
+                        with_stack=args.with_stack, perf_reps=args.perf,
                         with_torch_profiler=not args.no_torch_profiler, **fkw)
         trace.env["weights"] = origin
         trace.env["weights_sha256"] = digest
@@ -244,7 +260,7 @@ def main() -> int:
         print("=" * 76)
         print(summary(trace))
         print(f"\n-> {out_dir}/xnn-trace.json  "
-              f"(device {dev}, 가중치 {origin} {digest[:12]}, 배치 정확도 {acc:.1%})")
+              f"(device {dev}, weights {origin} {digest[:12]}, batch accuracy {acc:.1%})")
         print()
     return 0
 
