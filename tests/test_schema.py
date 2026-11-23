@@ -269,11 +269,27 @@ def test_op_tree_cap_keeps_first_level():
     print("  op_tree 상한 처리 OK")
 
 
+def test_summary_gpu_key_distinct():
+    """요약 마커의 장치 이름과 구간의 커널 통계가 같은 키를 쓰면 안 된다."""
+    t = sample()
+    t.env = dict(t.env or {}, gpu="NVIDIA GeForce RTX 2060 SUPER")
+    t.regions[0].gpu = {"kernel_us": 1.0, "kernels": 1}
+    ev = trace_json.build(t)["traceEvents"]
+    marker = [e for e in ev if e["ph"] == "i" and e.get("cat") == "xnn"]
+    assert len(marker) == 1
+    assert marker[0]["args"]["gpu_name"] == "NVIDIA GeForce RTX 2060 SUPER"
+    assert "gpu" not in marker[0]["args"]
+    gx = [e for e in ev if e["ph"] == "X" and "gpu" in e["args"]]
+    assert gx and all(isinstance(e["args"]["gpu"], dict) for e in gx)
+    print("  요약 gpu_name / 구간 gpu 분리 OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
                test_trace_event_format, test_roundtrip, test_sources_declare_limits,
                test_steady_state, test_membrane_histogram, test_op_tree_nesting,
                test_nsys_projection, test_nsys_stale_sqlite,
-               test_op_tree_cap_keeps_first_level):
+               test_op_tree_cap_keeps_first_level,
+               test_summary_gpu_key_distinct):
         fn()
     print("\n계약 테스트 전부 통과")

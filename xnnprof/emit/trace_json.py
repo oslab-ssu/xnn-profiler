@@ -81,9 +81,12 @@ def _summary(trace: Trace) -> dict[str, Any]:
     """모델 단위 측정값. 구간 하나에 귀속되지 않아 별도 마커로 내보낸다."""
     env = trace.env or {}
     out: dict[str, Any] = dict(trace.metrics or {})
-    for k in ("device", "region_timing", "weights_sha256", "batch_accuracy", "gpu"):
+    for k in ("device", "region_timing", "weights_sha256", "batch_accuracy"):
         if env.get(k) is not None:
             out[k] = env[k]
+    # 구간의 args.gpu(커널 통계 dict)와 겹치지 않게 장치 이름은 gpu_name으로 싣는다
+    if env.get("gpu") is not None:
+        out["gpu_name"] = env["gpu"]
     src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
     if src is not None and (src.detail or {}).get("attribution_rate") is not None:
         out["attribution_rate"] = src.detail["attribution_rate"]
