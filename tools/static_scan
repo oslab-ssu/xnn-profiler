@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""Measure how far a static source scan can find instrumentation points.
+"""Measure whether static source inspection can find instrumentation points.
 
-The current runtime approach walks `named_modules()` and therefore sees only
-calls registered as modules in the model tree. Operations written
-functionally inside forward (`F.linear`), tensor methods (`x.flatten(1)`) and
-operators (`+`) are not modules and are missed.
+The current runtime approach walks `named_modules()` and only sees calls registered as
+modules in the model tree. Functional ops in forward (`F.linear`), tensor methods
+(`x.flatten(1)`), and operators (`+`) are not modules and are not caught.
 
-This tool parses the model source with the AST and counts
-  1) the call sites inside forward, classified by kind, and
-  2) how far a type can be determined statically, by tracing attribute ->
-     module type back through the assignments in `__init__`.
-The difference against what the runtime walk finds is exactly the set of
-missed points.
+This tool parses the model source as an AST and
+  1) classifies call sites inside forward by kind, and
+  2) traces attribute -> module type back from assignments in `__init__`,
+     to see how far types can be determined statically.
+The difference from the set found by the runtime walk is the set of missed points.
 
-Given a trace as well, the statically found points are compared against the
-regions actually produced, and uninstrumented points are reported with their
-source line numbers. Automatic insertion is the runtime's job; the static
-scan verifies its coverage.
+Given a trace, statically found points are matched against the regions actually
+produced, and uninstrumented points are reported with source line numbers. Insertion
+is done at runtime; static inspection verifies its coverage.
 
   tools/static_scan --file xnnprof/models/__init__.py
   tools/static_scan --trace out/fcsnn/xnn-trace.json --model FcSnn
@@ -32,8 +29,8 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
-# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -44,20 +41,18 @@ TENSOR_METHOD = "tensor method"
 OPERATOR = "operator"
 OTHER = "other call"
 
-# Only types that perform MACs or hold state are instrumented
-# (same rule as torch_hooks.targets)
+# Only types that produce MACs or hold state are instrumented (same as torch_hooks.targets)
 TARGET_TYPES = {"Linear", "Conv2d", "Conv1d", "Conv3d"}
 SNN_TYPES = {"Leaky", "Synaptic", "Alpha", "Lapicque", "RLeaky", "RSynaptic"}
 CONTAINERS = {"Sequential", "ModuleList", "ModuleDict"}
 
 
 def attr_types(cls: ast.ClassDef) -> dict[str, str]:
-    """Collect attribute -> type from `self.x = nn.Y(...)` in `__init__`.
+    """Collect attribute -> type from `self.x = nn.Y(...)` assignments in `__init__`.
 
-    When the arguments of `nn.Sequential(...)` are literal constructors, the
-    children are expanded as well, in the form `dnn1.0`. Only literal
-    assignments are resolved: a module built from a config value, attached via
-    `setattr` or created in a loop has no knowable type without running it.
+    If the arguments of `nn.Sequential(...)` are literal constructors, children are
+    expanded as `dnn1.0`. Only literal assignments are understood; modules built from
+    config, attached with `setattr`, or created in loops cannot be typed without running.
     """
     out: dict[str, str] = {}
     for fn in cls.body:
@@ -78,7 +73,7 @@ def attr_types(cls: ast.ClassDef) -> dict[str, str]:
                 out[t.attr] = tname
                 if tname not in CONTAINERS:
                     continue
-                for i, arg in enumerate(node.value.args):   # expand children too
+                for i, arg in enumerate(node.value.args):   # expand children
                     if not isinstance(arg, ast.Call):
                         continue
                     g = arg.func
@@ -90,7 +85,7 @@ def attr_types(cls: ast.ClassDef) -> dict[str, str]:
 
 
 def classify(node: ast.AST, types: dict[str, str]) -> tuple[str, str, str]:
-    """Return `(kind, notation, statically determined type)`."""
+    """(kind, text, statically determined type)"""
     if isinstance(node, ast.BinOp):
         op = type(node.op).__name__
         return OPERATOR, {"Add": "+", "Mult": "*", "Sub": "-"}.get(op, op), ""
@@ -120,10 +115,10 @@ def trace_layers(path: str) -> set[str]:
 
 
 def covered(attr: str, layers: set[str]) -> str:
-    """Whether the attribute name appears as a layer_id in the trace.
+    """Whether an attribute name appears as a layer_id in the trace.
 
-    Numeric names are normalized by the collector to `dnn1.0:Conv2d`, and
-    containers appear through their children. Both cases are matched.
+    Numeric names are normalized by the collector to `dnn1.0:Conv2d`, and containers
+    appear through their children. Both cases are matched.
     """
     if attr in layers:
         return attr
@@ -136,7 +131,7 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
     tree = ast.parse(open(path, encoding="utf-8").read(), filename=path)
     classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
     if not classes:
-        print(f"{path}: no nn.Module definition found")
+        print(f"{path}: no nn.Module definitions")
         return
 
     for cls in classes:
@@ -148,12 +143,10 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
             continue
         types = attr_types(cls)
         print("=" * 84)
-        print(f"class {cls.name}   {len(types)} attributes with a type "
-              f"resolved from __init__")
+        print(f"class {cls.name}   {len(types)} attributes typed from __init__")
         for k, v in types.items():
             mark = ("instrumented" if v in TARGET_TYPES | SNN_TYPES else
-                    "container -- children expanded" if v in CONTAINERS
-                    else "not a target")
+                    "container (children expanded)" if v in CONTAINERS else "not a target")
             print(f"    self.{k:14s} = {v:12s} {mark}")
 
         rows, counts = [], {}
@@ -165,12 +158,11 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
             rows.append((node.lineno, kind, text, tname))
 
         print(f"\n  {len(rows)} call sites inside forward")
-        print(f"  {'line':>4s}  {'kind':14s} {'notation':24s} "
-              f"{'static type':14s} runtime walk")
+        print(f"  {'line':>4s}  {'kind':12s} {'text':24s} {'static type':14s} runtime walk")
         for lineno, kind, text, tname in sorted(rows):
             if kind == MODULE_CALL:
                 if tname in CONTAINERS:
-                    caught = "children only (indexed names)"
+                    caught = "children only (index names)"
                 elif tname in TARGET_TYPES | SNN_TYPES:
                     caught = "caught"
                 elif tname:
@@ -179,11 +171,10 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
                     caught = "type unknown"
             else:
                 caught = "missed"
-            print(f"  {lineno:4d}  {kind:14s} {text:24s} {tname or '-':14s} {caught}")
+            print(f"  {lineno:4d}  {kind:12s} {text:24s} {tname or '-':14s} {caught}")
 
         if layers is not None:
-            print("  trace cross-check -- were the statically found points "
-                  "actually instrumented?")
+            print("  trace check: were statically found points actually instrumented?")
             seen, gaps = set(), []
             for lineno, kind, text, tname in sorted(rows):
                 if kind == MODULE_CALL:
@@ -196,31 +187,27 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
                             hit = covered(name, layers)
                             seen.update(hit.split(", "))
                             print(f"    {lineno:4d}  self.{name:14s} {ctype:12s} "
-                                  f"-> region {hit}")
+                                  f"-> regions {hit}")
                         else:
-                            why = ("not instrumented"
-                                   if ctype in TARGET_TYPES | SNN_TYPES
-                                   else "excluded by the registration rule")
-                            gaps.append((lineno, f"self.{name}",
-                                         ctype or "type unknown", why))
+                            why = ("instrumentation missing" if ctype in TARGET_TYPES | SNN_TYPES
+                                   else "excluded by registration rule")
+                            gaps.append((lineno, f"self.{name}", ctype or "type unknown", why))
                 else:
-                    gaps.append((lineno, text, kind,
-                                 "not a module -- structurally unreachable"))
+                    gaps.append((lineno, text, kind, "not a module; structurally impossible"))
             for lineno, what, why, how in sorted(gaps):
                 print(f"    {lineno:4d}  {what:20s} {why:14s} {how}")
             extra = layers - seen
             if extra:
-                print(f"    {len(extra)} regions absent from the source: "
-                      f"{', '.join(sorted(extra))}")
-            print(f"    instrumented {len(seen)} / not instrumented {len(gaps)}")
+                print(f"    {len(extra)} regions not in source: {', '.join(sorted(extra))}")
+            print(f"    instrumented points {len(seen)} / uninstrumented {len(gaps)}")
             print()
 
         missed = sum(v for k, v in counts.items() if k != MODULE_CALL)
         print(f"\n  summary  module calls {counts.get(MODULE_CALL, 0)} / "
-              f"non-module sites {missed} "
+              f"non-module points {missed} "
               f"(functional {counts.get(FUNCTIONAL, 0)}, "
-              f"tensor method {counts.get(TENSOR_METHOD, 0)}, "
-              f"operator {counts.get(OPERATOR, 0)}, "
+              f"tensor methods {counts.get(TENSOR_METHOD, 0)}, "
+              f"operators {counts.get(OPERATOR, 0)}, "
               f"other {counts.get(OTHER, 0)})")
         print()
 
@@ -228,10 +215,8 @@ def scan(path: str, layers: set[str] | None = None, only: str = "") -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", default=os.path.join(REPO, "xnnprof", "models", "__init__.py"))
-    ap.add_argument("--trace", default="",
-                    help="xnn-trace.json to cross-check against")
-    ap.add_argument("--model", default="",
-                    help="scan only this class name")
+    ap.add_argument("--trace", default="", help="xnn-trace.json to check against")
+    ap.add_argument("--model", default="", help="inspect a single class name only")
     args = ap.parse_args()
     scan(args.file, trace_layers(args.trace) if args.trace else None, args.model)
     return 0

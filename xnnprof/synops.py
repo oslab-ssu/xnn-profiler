@@ -1,14 +1,12 @@
 """SynOps = spike count x fan-out.
 
-The fan-out is read from the graph rather than hard-coded. The existing
-SNN-Specialized code bakes in constants such as `spk1.sum() * 64` and
-`spk2.sum() * 10`, which silently produce wrong numbers once a layer width
-changes.
+Fan-out is read from the graph, not hard-coded. The old SNN-Specialized code used
+constants such as `spk1.sum() * 64` and `spk2.sum() * 10`, which silently gave wrong
+values whenever a layer width changed.
 
-The rule: the consumer of a spiking layer with N neurons is the layer that
-comes after it in execution order, takes binary input and has
-`in_features == N`. That layer's `out_features` is the fan-out. If no
-consumer is found the value is left as None rather than guessed.
+Rule: the consumer of a spiking layer with N neurons is the layer that comes after it
+in execution order, takes binary input, and has in_features == N. That layer's
+out_features is the fan-out. If no consumer is found, leave it None; never guess.
 """
 
 from __future__ import annotations

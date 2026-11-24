@@ -39,11 +39,11 @@ def test_snn_metrics():
     assert m["executed_macs"] == 1400
     assert m["state_bytes"] == 64
     ol = m["output_latency"]  # noqa
-    # The last spiking layer in execution order is the output layer
+    # the last spiking layer in execution order is the output layer
     assert ol["layer_id"] == "lif1"
     # per_timestep_rate is 0,0,0.5,0.5 -> output starts at step 2
     assert ol["first_spike_step"] == 2 and ol["timesteps"] == 4
-    assert "synops" not in m, "a metric that was not derived gets no key"
+    assert "synops" not in m, "items that are not computed get no key"
 
     dnn = Trace(run_id="r", model_id="dnn", timesteps=1)
     dnn.layers = [Layer("fc1", "Linear", calls=1, macs=10)]
@@ -55,7 +55,7 @@ def test_snn_metrics():
 
 
 class FakeEvent:
-    """Mimics only FunctionEvent's name, cpu_parent and self_cpu_time_total."""
+    """Mimics only FunctionEvent name, cpu_parent, and self_cpu_time_total."""
 
     def __init__(self, name, parent=None, self_us=0.0):
         self.name = name
@@ -68,17 +68,16 @@ def test_label_join():
     linear = FakeEvent("aten::linear", label, 10.0)
     addmm = FakeEvent("aten::addmm", linear, 90.0)
     loose = FakeEvent("aten::empty", None, 7.0)
-    assert owner_of(addmm) == ("fc1", 3), "a grandchild walks up to its label"
+    assert owner_of(addmm) == ("fc1", 3), "grandchild events walk up to the label too"
     assert owner_of(linear) == ("fc1", 3)
-    assert owner_of(loose) is None, "anything outside a label is unattributed"
-    # A normalized layer_id is recovered unchanged
+    assert owner_of(loose) is None, "events outside labels are not attributed"
+    # normalized layer_ids are recovered as-is
     assert owner_of(FakeEvent("aten::addmm", FakeEvent("1:Linear@t0"))) \
         == ("1:Linear", 0)
-    # Instrumentation's own operations hit the instrument label first,
-    # so they never mix into a region
+    # instrumentation ops have the instrument label as nearest label, so they stay out of regions
     inst = FakeEvent(INSTRUMENT_LABEL, FakeEvent("fc1@t0"))
     assert owner_of(FakeEvent("aten::all", inst, 5.0)) == INSTRUMENT
-    print("  label-based correlation OK")
+    print("  label-based integration OK")
 
 
 class Linear:
@@ -112,7 +111,7 @@ def test_trace_event_format():
     assert len(with_ops) == 2
     assert with_ops[0]["args"]["ops_self_time_us"]["aten::addmm"] == 90.0
     syncd = [e for e in x if "host_sync_us" in e["args"]]
-    assert len(syncd) == 1, "only regions holding a sync op are marked"
+    assert len(syncd) == 1, "only regions with sync ops are flagged"
     assert syncd[0]["args"]["host_sync_us"] == 4.0
     assert syncd[0]["args"]["host_sync_fraction"] == 0.8, "4us of a 5us region is sync"
     counters = [e for e in ev if e["ph"] == "C"]
@@ -147,27 +146,29 @@ def test_sources_declare_limits():
         s = cls().collect(Trace(run_id="r", model_id="m"))
         assert s.status == "unavailable" and s.reason
         assert s.attribution in ("region", "process-global", "static-name")
-    perf = next(c for c in ALL if c.name == "perf")
-    assert perf.attribution == "process-global", "perf cannot attribute to a layer"
+    from xnnprof.collect.perf import PerfCollector
+    assert PerfCollector.attribution == "process-global", "perf cannot attribute to layers"
+    s = PerfCollector().collect(Trace(run_id="r", model_id="m"))
+    assert s.status == "unavailable" and s.reason, "recorded in sources when no window was opened"
     print("  collector attribution limits declared OK")
 
 
 def test_steady_state():
     from xnnprof.steady import steady_state
-    # Same pattern from the start -- converges at step 1
+    # same pattern from the start: reached at step 1
     ss = steady_state([[0, 1, 0, 1]] * 4)
     assert ss["reached_step"] == 1 and ss["c_t"] == [0.0, 0.0, 0.0], ss
-    # Changes only from step 0->1 and is fixed after -- converges at step 2
+    # changes only at step 0->1 and fixed after: reached at step 2
     ss = steady_state([[1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 0, 1], [0, 1, 0, 1]])
     assert ss["reached_step"] == 2, ss
-    # Fully inverted every step -- an alternating pattern, so c_t > 1, never converges
+    # fully flips every step: alternating, so c_t > 1, not reached
     flip = [[1, 1, 0, 0], [0, 0, 1, 1], [1, 1, 0, 0], [0, 0, 1, 1]]
     ss = steady_state(flip)
     assert ss["reached_step"] is None and ss["c_t_min"] > 1.0, ss
-    # Firing rate 0 -- the denominator is 0, so it is undefined. Do not substitute 0
+    # firing rate 0: denominator is 0, so undefined. Never store 0
     ss = steady_state([[0, 0], [0, 0], [0, 0]])
     assert "reached_step" not in ss and ss["reason"], ss
-    print("  steady-state convergence step OK")
+    print("  steady-state step OK")
 
 
 def test_membrane_histogram():
@@ -175,8 +176,8 @@ def test_membrane_histogram():
     counts = [[0] * MEM_BINS for _ in range(2)]
     counts[0][0] = 50          # mem < 0
     counts[0][60] = 25         # near threshold (bins 57~64)
-    counts[0][65] = 25         # mem >= theta
-    counts[1][30] = 100        # mid range
+    counts[0][65] = 25         # mem >= θ
+    counts[1][30] = 100        # middle
     m = derive_membrane_metrics(counts)
     assert m["bins"] == MEM_BINS and m["near_bins"] == [57, 64]
     assert m["near_threshold_fraction"] == [0.25, 0.0], m
@@ -194,7 +195,7 @@ def test_op_tree_nesting():
     assert [c["depth"] for c in out] == [1, 2, 2], out
     deep = next(c for c in out if c["name"] == "aten::addmm")
     assert deep["off_us"] + deep["dur_us"] <= 100.0 and deep["clamped"]
-    # The cap cuts whole depth levels -- dropping a middle one breaks nesting
+    # the count cap cuts by whole depth levels; dropping only middle levels breaks nesting
     assert {c["depth"] for c in nest(calls, 100.0, cap=1)} == {1}
     print("  operator call hierarchy OK")
 
@@ -221,7 +222,7 @@ def test_nsys_projection():
     c.execute("INSERT INTO NVTX_EVENTS VALUES(200,300,59,'xnn::instrument',7)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(150,160,7,1)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_RUNTIME VALUES(250,260,7,2)")
-    # Kernels run after the range closes; they must be grouped by launch time
+    # kernels run after the range closes; they must be grouped by launch time
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(9000,12000,1,1)")
     c.execute("INSERT INTO CUPTI_ACTIVITY_KIND_KERNEL VALUES(20000,21000,2,1)")
     c.execute("INSERT INTO StringIds VALUES(1,'sgemm')")
@@ -233,14 +234,14 @@ def test_nsys_projection():
     g = t.region("fc2", 0).gpu
     assert g["kernels"] == 1 and g["kernel_us"] == 3.0, g
     assert g["top_kernels"][0]["name"] == "sgemm"
-    # A kernel launched inside the instrument label is not the region's share
+    # kernels launched inside the instrument label do not belong to the region
     assert src.detail["kernel_us_in_ranges"] == 3.0
     assert src.detail["kernel_us_total"] == 4.0
     print("  NVTX GPU projection OK")
 
 
 def test_nsys_stale_sqlite():
-    """A stale sqlite left beside a regenerated report must be re-exported."""
+    """If the report was re-captured but an old sqlite remains, it must be re-exported."""
     import os
     import tempfile
     import time
@@ -252,15 +253,15 @@ def test_nsys_stale_sqlite():
     time.sleep(0.02)
     open(rep, "w").write("new")
     got, why = sqlite_for(rep, export=False)
-    assert got == "" and "older than the report" in why, (got, why)
-    os.utime(db, None)                       # make the db newer
+    assert got == "" and "older" in why, (got, why)
+    os.utime(db, None)                       # make the db newest
     got, why = sqlite_for(rep, export=False)
     assert got == db, (got, why)
-    print("  nsys report/sqlite staleness check OK")
+    print("  nsys report/sqlite ordering OK")
 
 
 def test_op_tree_cap_keeps_first_level():
-    """A cap smaller than the first level must still leave the region non-empty."""
+    """Even when the cap is below the first level, the region must not end up empty."""
     from xnnprof.collect.torch_prof import nest
     calls = [{"name": f"op{i}", "depth": 1, "off_us": float(i), "dur_us": 1.0}
              for i in range(5)]
@@ -270,11 +271,46 @@ def test_op_tree_cap_keeps_first_level():
     print("  op_tree cap handling OK")
 
 
+def test_summary_gpu_key_distinct():
+    """The summary marker device name and region kernel stats must not share a key."""
+    t = sample()
+    t.env = dict(t.env or {}, gpu="NVIDIA GeForce RTX 2060 SUPER")
+    t.regions[0].gpu = {"kernel_us": 1.0, "kernels": 1}
+    ev = trace_json.build(t)["traceEvents"]
+    marker = [e for e in ev if e["ph"] == "i" and e.get("cat") == "xnn"]
+    assert len(marker) == 1
+    assert marker[0]["args"]["gpu_name"] == "NVIDIA GeForce RTX 2060 SUPER"
+    assert "gpu" not in marker[0]["args"]
+    gx = [e for e in ev if e["ph"] == "X" and "gpu" in e["args"]]
+    assert gx and all(isinstance(e["args"]["gpu"], dict) for e in gx)
+    print("  summary gpu_name / region gpu kept apart OK")
+
+
+def test_perf_csv_parse():
+    """Parse perf stat -x, output. Events that could not be counted are None, not 0."""
+    from xnnprof.collect.perf import derive, parse_csv
+    text = ("# started on Mon Nov 23 18:00:00 2026\n\n"
+            "12.50,msec,task-clock,12500000,100.00,0.998,CPUs utilized\n"
+            "40000000,,cycles,12500000,100.00,3.200,GHz\n"
+            "80000000,,instructions,12500000,100.00,2.00,insn per cycle\n"
+            "1000000,,cache-references,12500000,100.00,,\n"
+            "250000,,cache-misses,12500000,100.00,25.00,of all cache refs\n"
+            "<not supported>,,branch-misses,0,100.00,,\n")
+    c = parse_csv(text)
+    assert c["cycles"]["value"] == 40e6 and c["branch-misses"]["value"] is None
+    d = derive(c, reps=10)
+    assert d["ipc"] == 2.0 and d["cache_miss_rate"] == 0.25
+    assert d["per_forward"]["cycles"] == 4e6
+    assert d["not_counted"] == ["branch-misses"]
+    print("  perf stat CSV parsing OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
                test_trace_event_format, test_roundtrip, test_sources_declare_limits,
                test_steady_state, test_membrane_histogram, test_op_tree_nesting,
                test_nsys_projection, test_nsys_stale_sqlite,
-               test_op_tree_cap_keeps_first_level):
+               test_op_tree_cap_keeps_first_level,
+               test_summary_gpu_key_distinct, test_perf_csv_parse):
         fn()
     print("\nall contract tests passed")

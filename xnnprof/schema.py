@@ -1,7 +1,4 @@
-"""Unified profiling format `xnn.trace`.
-
-Every collector normalizes its results into this schema before returning them.
-"""
+"""Unified profile format xnn.trace. Every collector normalizes its output to this schema."""
 
 from __future__ import annotations
 
@@ -17,7 +14,7 @@ DENSE, SPIKE, STATE = "dense", "spike", "state"
 
 @dataclass
 class Region:
-    """A `(layer_id, timestep)` time span: the correlation key across tools."""
+    """(layer_id, timestep) time region. The correlation key across tools."""
     region_id: int
     layer_id: str
     timestep: Optional[int]
@@ -26,10 +23,10 @@ class Region:
     domain: str = DENSE
     parent_id: Optional[int] = None
     ops: dict[str, float] = field(default_factory=dict)   # op name -> self time (us)
-    # Operator call hierarchy inside the region. Offsets are relative to the
-    # label's start, so no clock alignment is needed. {name, depth, off_us, dur_us}
+    # Operator call hierarchy inside the region. Offsets are relative to the label
+    # start, so no clock alignment is needed. {name, depth, off_us, dur_us}
     op_tree: list[dict[str, Any]] = field(default_factory=list)
-    gpu: dict[str, Any] = field(default_factory=dict)     # Nsight Systems projection
+    gpu: dict[str, Any] = field(default_factory=dict)     # projected from Nsight Systems
 
 
 @dataclass
@@ -63,7 +60,7 @@ class SpikeRef:
 
 @dataclass
 class MembraneRef:
-    """Reference to a membrane potential observation: a `[T, 66]` bin histogram."""
+    """Reference to the membrane-potential observation file. `[T, 66]` histogram bin counts."""
     layer_id: str
     path: str
     sha256: str = ""
@@ -75,11 +72,11 @@ class MembraneRef:
 
 @dataclass
 class Source:
-    """Provenance declaration for a single collector.
+    """Provenance declaration for one collector.
 
-    `attribution` states the finest unit the tool can attribute to *in
-    principle*. perf is process-global, so it cannot attribute to a layer;
-    hiding that would turn the output into a fabricated number.
+    `attribution` is the finest unit the tool can attribute to *in principle*.
+    perf is process-global, so it cannot be attributed to layers; hiding that
+    would produce false numbers.
     """
     collector: str
     status: str = "unavailable"           # captured | partial | unavailable | failed
@@ -138,8 +135,8 @@ class Trace:
     def load(path: str) -> "Trace":
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
-        # The only file we emit is a single Chrome Trace Event JSON, and our
-        # own payload lives under its `xnn` extension key. Accept either form.
+        # The only output file is a Chrome Trace Event JSON; our content lives in
+        # its `xnn` extension key. Accept either form.
         if "traceEvents" in d and isinstance(d.get("xnn"), dict):
             d = d["xnn"]
         d.pop("schema", None), d.pop("version", None)

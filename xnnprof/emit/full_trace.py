@@ -1,23 +1,18 @@
-"""Execution-wide operator hierarchy, folded in from the PyTorch Profiler's
-Chrome Trace export.
+"""Op hierarchy of the whole run: overlays PyTorch Profiler's Chrome Trace export.
 
-A region's `op_tree` holds only the operations attributed to a registered
-region. The layer tracks therefore fill up only while a region is open, and
-whatever ran in between -- instrumentation's own cost, functional calls
-outside any label, work outside the loop -- shows up nowhere. Seeing what ran
-when, without gaps, requires that share as well.
+Per-region `op_tree` holds only ops attributed to registered regions. Layer tracks are
+therefore filled only while a region is open, and whatever ran in between
+(instrumentation cost, functional calls outside labels, ops outside the loop) shows up
+nowhere. Seeing what ran when, without gaps, needs that share too.
 
-The profiler export contains the labels opened by the hooks, verbatim, as
-`user_annotation` slices. The same names appear in our region list, so the
-difference between the two clock origins can be derived from those label
-pairs and added once to put every event on our timeline. The residual problem
-from section 2.2 of the design document does not arise here: the
-correspondence is taken from all labels rather than a single one, and the
-remaining residual is recorded in the provenance.
+The profiler export contains the hook labels as `user_annotation` slices. The same
+names exist in our region list, so the clock origin offset is taken from the label
+pairs and added once to place every event on our timeline. The residual problem of
+design doc section 2.2 does not arise here: the offset is taken from all labels rather
+than a single anchor, and the remaining residual is recorded in sources.
 
-The folded-in events live under their own pid. The per-layer tracks are a
-view read by unified key; this one is a view read by execution order. Mixing
-them into the same track makes neither readable.
+Overlaid events go on a separate pid. Layer tracks are a view keyed by the unified key;
+this is a view in execution order. Mixing both on one track makes neither readable.
 """
 
 from __future__ import annotations
@@ -30,7 +25,7 @@ from ..collect.torch_prof import LABEL
 from ..schema import Trace
 
 FULL_PID = 2
-PROCESS_NAME = "Execution-wide (PyTorch Profiler)"
+PROCESS_NAME = "Full run (PyTorch Profiler)"
 
 
 def _label_events(events: list[dict]) -> dict[str, dict]:
@@ -45,10 +40,7 @@ def _label_events(events: list[dict]) -> dict[str, dict]:
 
 
 def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, Any]]:
-    """Offset between the two clock origins.
-
-    Derived from every label, and returned together with the residual.
-    """
+    """Clock origin offset, taken from all labels; the residual is returned with it."""
     labels = _label_events(events)
     diffs = []
     for r in trace.regions:
@@ -59,7 +51,7 @@ def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, 
             continue
         diffs.append(r.ts_us - float(ev["ts"]))
     if not diffs:
-        return None, {"reason": "no label slice found in the export"}
+        return None, {"reason": "no label slices found in the export"}
     diffs.sort()
     offset = diffs[len(diffs) // 2]
     resid = [d - offset for d in diffs]
@@ -71,11 +63,11 @@ def align(trace: Trace, events: list[dict]) -> tuple[Optional[float], dict[str, 
 
 
 def extract(trace_path: str) -> list[dict]:
-    """Pull the execution-wide track back out of an already written trace file.
+    """Pull the full-run track out of an already written trace file.
 
-    These events live only in `traceEvents`, not under the `xnn` extension
-    key. Any path that re-reads and rewrites the file -- a merge, for
-    instance -- would drop them, so they are extracted and re-injected.
+    These events exist only in `traceEvents`, not in the `xnn` extension key. Paths
+    that reread and rewrite the file, such as merging, would drop them, so they are
+    taken out and put back.
     """
     try:
         with open(trace_path, encoding="utf-8") as f:
@@ -86,12 +78,11 @@ def extract(trace_path: str) -> list[dict]:
 
 
 def perfectly_nest(slices: list[dict]) -> tuple[list[dict], int]:
-    """Clip slice ends so a child never extends past its parent.
+    """Clip slice ends so children never extend past their parent.
 
-    With `with_stack` enabled, Python tracing events and operator events are
-    timestamped through different paths, so their boundaries disagree by a few
-    us. Viewers reject slices that are not perfectly nested, so containment is
-    enforced here. The number of clipped slices is recorded in the provenance.
+    With `with_stack`, Python trace events and op events are timestamped by different
+    paths and boundaries drift by a few µs. Viewers reject slices that do not nest
+    exactly, so containment is enforced. The clip count is recorded in sources.
     """
     groups: dict[tuple, list[dict]] = {}
     for s in slices:
@@ -116,9 +107,9 @@ def perfectly_nest(slices: list[dict]) -> tuple[list[dict], int]:
 
 
 def events_for(trace: Trace, export_path: str) -> tuple[list[dict], dict[str, Any]]:
-    """Read the export file and build the event list to fold into our timeline."""
+    """Read the export file and build the event list to overlay on our timeline."""
     if not export_path or not os.path.exists(export_path):
-        return [], {"reason": "export file not found"}
+        return [], {"reason": "export file missing"}
     try:
         with open(export_path, encoding="utf-8") as f:
             raw = json.load(f)

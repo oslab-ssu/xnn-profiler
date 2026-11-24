@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
-"""nsys_merge -- merge GPU kernel time from an Nsight Systems report into the
-profiling regions.
+"""nsys_merge: merge GPU kernel time from an Nsight Systems report into regions.
 
-The merge cannot happen in the same run as the measurement: the report is
-written only after the process exits, so during measurement the file does not
-exist yet. Hence two steps.
+Merging cannot happen in the same run as the measurement: the report is written after
+the process exits, so the file does not exist yet during measurement. Hence two steps.
 
   1) nsys profile -t cuda,nvtx,osrt -o out/fcsnn/nsys \\
          python tools/xnnprof --model fcsnn --device cuda --train 0 \\
          --weights weights --no-torch-profiler
   2) tools/nsys_merge out/fcsnn/xnn-trace.json out/fcsnn/nsys.nsys-rep
 
-Step 2 updates the trace in place. Each region gains `args.gpu` with kernel
-time, kernel count, projected span and the top kernel names, and the
-provenance declares the projection rule and the share of kernels that fell
-outside any range.
+Step 2 updates the trace in place. Each region gets kernel time, kernel count, the
+projected range, and top kernel names in `args.gpu`; sources declare the projection
+rule and the share of kernels outside ranges.
 
-Given a `.nsys-rep`, a `.sqlite` is produced next to it (`nsys export`) and
-read. If a `.sqlite` already exists the merge works without nsys installed --
-it does not have to be the machine that took the measurement.
+Given a `.nsys-rep`, a `.sqlite` is created next to it (`nsys export`) and read. If the
+`.sqlite` already exists, merging works without nsys, even on a different machine.
 """
 
 from __future__ import annotations
@@ -31,8 +27,8 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
-# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -48,15 +44,14 @@ def main() -> int:
     ap.add_argument("trace", help="xnn-trace.json")
     ap.add_argument("report", help=".nsys-rep or .sqlite")
     ap.add_argument("--no-export", action="store_true",
-                    help="do not run nsys export when the .sqlite is missing")
+                    help="do not try nsys export when the .sqlite is missing")
     ap.add_argument("--out", default="",
                     help="defaults to updating the input trace in place")
-    ap.add_argument("--top", type=int, default=3,
-                    help="number of top kernels to keep per region")
+    ap.add_argument("--top", type=int, default=3, help="top kernels per region")
     args = ap.parse_args()
 
     trace = Trace.load(args.trace)
-    full = extract(args.trace)          # the execution-wide track is not under the xnn key
+    full = extract(args.trace)          # the full-run track is not in the xnn key
     before = len(trace.regions)
     src = NsysCollector(args.report, export=not args.no_export,
                         top=args.top).collect(trace)
@@ -69,9 +64,9 @@ def main() -> int:
     d = src.detail or {}
     print(f"nsight_systems  {src.status}  {src.reason}")
     if d:
-        print(f"  {d.get('nvtx_ranges')} NVTX ranges merged into "
+        print(f"  merged {d.get('nvtx_ranges')} NVTX ranges into "
               f"{d.get('matched_regions')} of {before} regions")
-        print(f"  in-range kernels {d.get('kernel_us_in_ranges', 0):,.1f}us / "
+        print(f"  kernels in ranges {d.get('kernel_us_in_ranges', 0):,.1f}us / "
               f"total {d.get('kernel_us_total', 0):,.1f}us "
               f"({d.get('in_range_fraction', 0):.1%}, "
               f"{d.get('kernels_total', 0):,} kernels)")
@@ -82,15 +77,15 @@ def main() -> int:
                  key=lambda r: -r.gpu.get("kernel_us", 0))[:8]
     if top:
         print()
-        print(f"  {'region':16s} {'kernel(us)':>12s} {'kernels':>8s} "
-              f"{'region(us)':>12s} {'share':>8s}  top kernel")
+        print(f"  {'region':16s} {'kernel(us)':>10s} {'kernels':>7s} "
+              f"{'region(us)':>10s} {'kern/reg':>9s}  top kernels")
         for r in top:
             g = r.gpu
             share = g["kernel_us"] / r.dur_us if r.dur_us else 0
             name = (g.get("top_kernels") or [{}])[0].get("name", "")
             print(f"  {r.layer_id + '@t' + str(r.timestep):16s} "
-                  f"{g['kernel_us']:12,.1f} {g['kernels']:8d} "
-                  f"{r.dur_us:12,.1f} {share:8.1%}  {name[:40]}")
+                  f"{g['kernel_us']:10,.1f} {g['kernels']:7d} "
+                  f"{r.dur_us:10,.1f} {share:9.1%}  {name[:40]}")
     print(f"\n-> {out}")
     return 0 if src.status in ("captured", "partial") else 1
 

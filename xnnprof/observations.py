@@ -1,13 +1,12 @@
-"""Observation artifacts -- the raw arrays are written out, not just aggregates.
+"""Observation files: raw data is exported, not aggregates.
 
-  spikes     `[T, batch, neurons]` binary array as a uint8 `.npy`
-  membrane   `[T, 66]` histogram bin counts as an int64 `.npy`
+  spikes     `[T, batch, neurons]` binary array as uint8 `.npy`
+  membrane   `[T, 66]` histogram bin counts as int64 `.npy`
 
-Raw membrane tensors are never accumulated. For `fcsnn`'s `lif1` a
-`[batch, neurons]` float32 tensor is 256 KB per step, or 2.56 MB at T=10.
-Memory is one of the things being measured, so instrumentation that holds
-that much would change what it measures; the tensor is converted to a
-fixed-bin histogram as soon as it arrives.
+Raw membrane tensors are not accumulated. `[batch, neurons]` float32 for `fcsnn`'s
+`lif1` is 256 KB per step, 2.56 MB at T=10. Memory is one of the things being
+measured, and instrumentation holding that much would change the subject, so each
+tensor is converted to a fixed-bin histogram as soon as it arrives.
 """
 
 from __future__ import annotations
@@ -21,13 +20,13 @@ from typing import Any, Optional
 OBSERVATION_SCHEMA = "ssu.snn.observation"
 OBSERVATION_VERSION = 1
 
-# Bin layout of the membrane histogram. Matches `torch.bucketize(..., right=True)`.
-#   0        mem < 0            reset is subtractive, so values can go negative
-#   1 ~ 64   [0, theta) in 64   each bin is theta/64 wide
-#   65       mem >= theta       the share that fired at this step
+# Membrane histogram bin layout. Matches `torch.bucketize(..., right=True)`.
+#   0        mem < 0             subtractive reset can push values below zero
+#   1 ~ 64   [0, θ) in 64 bins   each bin is θ/64 wide
+#   65       mem >= θ            the share that fired at this step
 MEM_BINS = 66
 MEM_IN_RANGE = 64
-MEM_NEAR_BINS = (57, 64)        # top 12.5% of [0, theta) -- candidates to fire next step
+MEM_NEAR_BINS = (57, 64)        # top 12.5% of [0, θ): candidates to fire next step
 
 
 @dataclass
@@ -58,15 +57,12 @@ class SpikeObservation:
 
 
 def derive_spike_metrics(array) -> dict[str, Any]:
-    """Keep these formulas identical to the spikes kind in RTST checks.py.
-
-    Changing them makes the results impossible to cross-check after handover.
-    """
+    """Formulas match the spikes kind in RTST checks.py. Changing them breaks cross-checking after handover."""
     import numpy as np
 
     a = np.asarray(array)
     if a.ndim < 3:
-        raise ValueError(f"expected [time, batch, neurons...] with 3+ dims: {a.shape}")
+        raise ValueError(f"need at least 3 dims [time, batch, neurons...]: {a.shape}")
     if not np.all((a == 0) | (a == 1)):
         raise ValueError(f"only 0/1 allowed (e.g. {float(a[(a != 0) & (a != 1)].ravel()[0])})")
 
@@ -138,7 +134,7 @@ class MembraneObservation:
     quantity: str = "membrane_histogram"
     axes: tuple[str, ...] = ("time", "bin")
     threshold: Optional[float] = None
-    bin_layout: str = ("0: mem < 0 | 1~64: [0, theta) in 64 bins | 65: mem >= theta")
+    bin_layout: str = ("0: mem < 0 | 1~64: [0, θ) in 64 bins | 65: mem >= θ")
     near_bins: tuple[int, int] = MEM_NEAR_BINS
     state_reset: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
@@ -154,23 +150,21 @@ class MembraneObservation:
 
 
 def derive_membrane_metrics(counts) -> dict[str, Any]:
-    """Derive from `[T, 66]` bin counts. The raw tensor is never re-read.
+    """Compute from `[T, 66]` bin counts without rereading raw tensors.
 
-    `near_threshold_fraction` is the share held by the top 8 bins of
-    `[0, theta)`: the neurons sitting just below threshold. It indicates how
-    much the output is likely to move when timesteps are reduced or the model
-    is quantized.
+    `near_threshold_fraction` is the share of the top 8 bins of `[0, θ)`: neurons
+    sitting just below threshold. It indicates how much the output may wobble when
+    timesteps are reduced or values are quantized.
 
-    The histogram is taken over the membrane potential returned by the neuron
-    module, with reset and decay already applied. So
-    `at_or_above_threshold_fraction` must not be read as that step's firing
-    rate; the firing rate is derived separately from the spike array.
+    The histogram covers the membrane potential returned by the neuron module, with
+    reset and decay already applied, so `at_or_above_threshold_fraction` must not be
+    read as that step's firing rate. Firing rate is computed from the spike array.
     """
     import numpy as np
 
     a = np.asarray(counts)
     if a.ndim != 2 or a.shape[1] != MEM_BINS:
-        raise ValueError(f"expected [time, {MEM_BINS}]: {a.shape}")
+        raise ValueError(f"need [time, {MEM_BINS}]: {a.shape}")
     total = a.sum(axis=1).astype(float)
     total[total == 0] = np.nan
     lo, hi = MEM_NEAR_BINS

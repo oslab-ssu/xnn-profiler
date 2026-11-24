@@ -1,23 +1,20 @@
-"""Nsight Systems collector: projects GPU kernels onto NVTX ranges so they
-land in the right region.
+"""Nsight Systems collector: projects GPU kernels onto NVTX ranges and into regions.
 
-The hooks leave the unified key string `fc1@t3` as an NVTX range, so finding
-that name in the report immediately identifies the region. No clock origin
-has to be aligned.
+Hooks emit the unified key string `fc1@t3` as an NVTX range, so finding that name in
+the report identifies the region directly. No clock alignment is needed.
 
-The projection rule matches nsys's own `nvtx_gpu_proj_sum`: a kernel counts
-toward the range whose CUDA runtime API call launched it. Kernels run
-asynchronously, so the decision must not be made from the kernel's execution
-timestamp -- a kernel running after the range has closed is normal.
+The projection rule matches nsys `nvtx_gpu_proj_sum`: kernels launched by CUDA runtime
+API calls made inside an NVTX range belong to that range. Kernels run asynchronously,
+so checking whether kernel execution time falls inside the range is wrong; kernels
+normally run after the range has ended.
 
     NVTX_EVENTS                      range name, [start, end), thread
     CUPTI_ACTIVITY_KIND_RUNTIME      runtime API calls, carrying correlationId
-    CUPTI_ACTIVITY_KIND_KERNEL       kernel executions, joined on correlationId
+    CUPTI_ACTIVITY_KIND_KERNEL       kernel executions, linked by the same correlationId
 
-The report (`.nsys-rep`) is exported to SQLite and read directly. The tables
-printed by `nsys stats` are not parsed because their column names and units
-change between versions. If a `.sqlite` already exists, the merge works
-without nsys installed.
+The report (`.nsys-rep`) is exported to SQLite and read directly. Tables from `nsys stats`
+are not parsed because column names and units change between versions. If a
+`.sqlite` already exists, merging works without nsys installed.
 """
 
 from __future__ import annotations
@@ -32,7 +29,7 @@ from ..schema import Trace
 from .base import Collector, REGION
 from .torch_prof import LABEL
 
-PROJECTION = "launch-in-range"      # a kernel counts toward the range that launched it
+PROJECTION = "launch-in-range"      # kernels launched inside a range belong to it
 
 QUERY = """
 SELECT n.text, s.value, COUNT(*), SUM(k.end - k.start),
@@ -51,11 +48,10 @@ TOTAL_KERNEL = "SELECT SUM(end - start), COUNT(*) FROM CUPTI_ACTIVITY_KIND_KERNE
 
 
 def nsys_bin() -> str:
-    """The `nsys` executable. If it is not on PATH, set the `NSYS` env var.
+    """The `nsys` executable. If not on PATH, set the `NSYS` environment variable.
 
-    The Windows installer does not put it on PATH, and the identically named
-    binary shipped with Nsight Compute cannot produce a report, so there has
-    to be a way to point at the right path directly.
+    The Windows install is not added to PATH, and the same-named binary shipped with
+    Nsight Compute cannot produce reports, so a way to give the path explicitly is needed.
     """
     env = os.environ.get("NSYS", "").strip('"')
     if env and os.path.exists(env):
@@ -64,27 +60,23 @@ def nsys_bin() -> str:
 
 
 def sqlite_for(report: str, export: bool = True) -> tuple[str, str]:
-    """Path of the `.sqlite` matching the report, created via `nsys export`
-    if missing.
-    """
+    """`.sqlite` path for a report, created with `nsys export` if missing."""
     if report.endswith(".sqlite"):
-        return (report, "") if os.path.exists(report) else ("", f"{report} not found")
+        return (report, "") if os.path.exists(report) else ("", f"{report} missing")
     if not os.path.exists(report):
-        return "", f"{report} not found"
+        return "", f"{report} missing"
     db = os.path.splitext(report)[0] + ".sqlite"
-    # If the report was regenerated but an old sqlite is still around, the
-    # merge would silently use the previous measurement. Re-export any db
-    # older than the report.
+    # If the report was re-captured but an old sqlite remains, the previous run would be
+    # merged, silently giving wrong numbers. Re-export any db older than the report.
     if os.path.exists(db) and os.path.getmtime(db) >= os.path.getmtime(report):
         return db, ""
     if not export:
-        stale = "older than the report" if os.path.exists(db) else "not found"
+        stale = "older than report" if os.path.exists(db) else "missing"
         return "", f"{db} {stale} (export skipped)"
     nsys = nsys_bin()
     if not nsys:
-        return "", (f"{db} is missing and nsys could not be found, so it "
-                    "cannot be exported -- put nsys on PATH or set the NSYS "
-                    "env var to its path")
+        return "", (f"{db} is missing and nsys was not found, cannot export; "
+                    "put it on PATH or set the NSYS environment variable")
     cmd = [nsys, "export", "--type", "sqlite", "--force-overwrite", "true",
            "-o", db, report]
     try:
@@ -113,7 +105,7 @@ class NsysCollector(Collector):
         if db:
             return True, "ok"
         if nsys_bin():
-            return True, "ok (export required)"
+            return True, "ok (export needed)"
         return False, why
 
     def collect(self, trace: Trace, **kw: Any):
@@ -172,13 +164,12 @@ class NsysCollector(Collector):
         in_us = in_ranges / 1000.0
         return self.declare(
             "captured" if matched else "partial",
-            "" if matched else "the report's NVTX ranges do not match the region list",
+            "" if matched else "NVTX ranges in the report do not match the region list",
             sqlite=db, projection=PROJECTION,
             nvtx_ranges=len(per), matched_regions=matched,
             kernel_us_in_ranges=round(in_us, 3),
             kernel_us_total=round(total_us, 3),
             kernels_total=int(total_n or 0),
             in_range_fraction=round(in_us / total_us, 6) if total_us else 0.0,
-            note=("kernels outside any range belong to execution that is not "
-                  "part of the measurement -- warm-up, training, accuracy "
-                  "evaluation. The capture wraps the whole process"))
+            note=("kernels outside ranges belong to non-measured execution such as warm-up, "
+                  "training, and accuracy evaluation; the capture wraps the whole process"))

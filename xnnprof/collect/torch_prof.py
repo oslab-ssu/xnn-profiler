@@ -1,21 +1,18 @@
-"""PyTorch Profiler collector: label-based correlation.
+"""PyTorch Profiler collector: label-based integration.
 
-The profiler keeps user labels opened with `record_function` in its event
-tree. The hooks open the unified key string `fc1@t3` as such a label, so
-walking an operator event's parents up to the nearest label determines which
-region that operator belongs to. No clock origin has to be aligned and no
-timestamp containment has to be tested.
+The profiler keeps user labels opened with `record_function` in its event tree. Hooks
+open the unified key string `fc1@t3` as a label, so walking up each op event's parents
+to the nearest label tells which region the op belongs to. No clock alignment or
+time-containment test is needed.
 
-Operators that force a host synchronization are tallied per region as well.
-A call like `.item()`, which pulls a GPU value into Python, stalls the CPU
-until the GPU queue has drained, and therefore dominates that region's time
-regardless of how much arithmetic it does. Which layer and which timestep it
-happened in only becomes visible once it is grouped by the unified key.
+Ops that cause host syncs are also tallied per region. Calls like `.item()` that pull a
+GPU value into Python stall the CPU until the GPU queue drains, so they dominate the
+region time regardless of compute. Which layer and timestep they occur in only shows
+when grouped by the unified key.
 
-`key_averages()` is not used: it has already summed the T calls together and
-cannot be taken back apart by layer and timestep. Execution without a label
-(`emit_labels=False`, or a functional call the hooks cannot reach) is kept
-separate as the unattributed share and recorded in the provenance.
+`key_averages()` is not used: it already sums T calls and cannot be split back into
+layers and timesteps. Execution without labels (`emit_labels=False`, or functional calls
+hooks cannot reach) is separated as the unattributed share and recorded in sources.
 """
 
 from __future__ import annotations
@@ -34,7 +31,7 @@ PYFRAME = re.compile(r"^.+\(\d+\): .+$")      # torch/nn/modules/module.py(1736)
 MAX_DEPTH = 64
 INSTRUMENT = ("__instrument__", -1)
 
-# Operators that force a host sync: calls that pull a GPU value into Python.
+# Ops that cause a host sync: calls that pull GPU values into Python.
 SYNC_OPS = frozenset({
     "aten::item", "aten::_local_scalar_dense", "aten::is_nonzero",
     "aten::nonzero", "aten::equal", "aten::allclose", "aten::_assert_async",
@@ -47,27 +44,23 @@ def is_pseudo(key: str) -> bool:
 
 
 def is_python_frame(key: str) -> bool:
-    """A Python tracing event, produced when `with_stack` is enabled.
+    """Python trace events enabled by `with_stack`.
 
-    Excluded from both the attribution tally and `op_tree`. Including them
-    would make the attribution rate of the same measurement depend on a single
-    flag, which breaks comparison across runs. To see Python frames, the
-    execution-wide track (`emit/full_trace.py`) carries the profiler export
-    verbatim.
+    Excluded from both attribution and `op_tree`. Including them would change the
+    attribution rate of the same measurement with one flag and break cross-run
+    comparison. Python frames are available on the full-run track (`emit/full_trace.py`).
     """
     return key.startswith("<") or PYFRAME.match(key) is not None
 
 
 def locate(ev):
-    """The unified key an event belongs to, its depth below that label, and
-    the label event itself.
+    """The unified key an event belongs to, plus its depth below the label and the label event.
 
-    Walks up the parents to the nearest label. If the instrumentation's own
-    label is hit first, the event is not part of the measurement and
-    `INSTRUMENT` is returned.
+    Walks up the parents to the nearest label. Reaching the instrumentation label first
+    means it is not part of the measurement, so `INSTRUMENT` is returned.
 
-    Returns `(key, depth, label_event)`. Depth counts levels below the label,
-    with a direct child at 1; it is used to draw the nested slices.
+    Returns `(key, depth, label_event)`. Depth counts levels below the label; direct
+    children of the label are 1. Used when drawing nested slices.
     """
     cur, depth = ev, 0
     while cur is not None and depth < MAX_DEPTH:
@@ -87,10 +80,7 @@ def owner_of(ev) -> Optional[tuple[str, int]]:
 
 
 def _span(ev):
-    """An event's `(start, duration)` in us.
-
-    The attribute name differs between profiler versions.
-    """
+    """Event `(start, duration)` in µs. Attribute names vary by profiler version."""
     tr = getattr(ev, "time_range", None) or getattr(ev, "cpu_interval", None)
     if tr is None:
         return None
@@ -101,13 +91,12 @@ def _span(ev):
 
 
 def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
-    """Clip slices into the region and drop the deepest levels to meet the cap.
+    """Clip into the region and drop the deepest levels first to meet the cap.
 
-    Offsets are relative to the label's start, so the two clocks never have to
-    share an origin. Region length is measured with `perf_counter` while
-    offsets come from the profiler's clock, so a slice can overhang the end by
-    a few us. Viewers reject slices that leave their parent, so they are cut at
-    the region boundary and the cut is recorded as `clamped`.
+    Offsets are relative to the label start, so the two clocks need no alignment.
+    Region length comes from `perf_counter` and offsets from the profiler clock, so a few
+    µs can stick out at the end. Viewers reject slices that extend past their parent, so
+    they are clipped at the region boundary. Clipped slices are marked `clamped`.
     """
     out = []
     for c in sorted(calls, key=lambda c: (c["depth"], c["off_us"])):
@@ -122,13 +111,13 @@ def nest(calls: list[dict], dur_us: float, cap: int) -> list[dict]:
         out.append(item)
     if len(out) <= cap:
         return out
-    keep, total = [], 0                  # cut whole depth levels -- dropping
-    for d in sorted({c["depth"] for c in out}):      # a middle one would break
-        level = [c for c in out if c["depth"] == d]  # the nesting
+    keep, total = [], 0                  # cut by whole depth levels; dropping only
+    for d in sorted({c["depth"] for c in out}):      # middle slices breaks nesting
+        level = [c for c in out if c["depth"] == d]
         if keep and total + len(level) > cap:
             break
-        keep += level                    # keep the first level even past the
-        total += len(level)              # cap, or the region would come out empty
+        keep += level                    # keep the first level even over the cap;
+        total += len(level)              # dropping it all would leave the region empty
     return keep
 
 
@@ -152,7 +141,7 @@ class TorchProfilerCollector(Collector):
 
     def collect(self, trace: Trace, **kw: Any):
         if self.prof is None:
-            return self.declare("unavailable", "no profiler session was passed in")
+            return self.declare("unavailable", "no profiler session was passed")
         try:
             events = list(self.prof.events())
         except Exception as e:
@@ -169,7 +158,7 @@ class TorchProfilerCollector(Collector):
             op = str(ev.name)
             if (is_pseudo(op) or LABEL.match(op) or op == INSTRUMENT_LABEL
                     or is_python_frame(op)):
-                continue                             # a label is not an operator
+                continue                             # the label itself is not an op
             key, depth, label_ev = locate(ev)
             if self.op_tree and key is not None and key != INSTRUMENT:
                 me, base = _span(ev), _span(label_ev)
@@ -191,7 +180,7 @@ class TorchProfilerCollector(Collector):
         attributed = sum(sum(d.values()) for d in per_key.values())
         unattributed = sum(orphan.values())
         instrument_us = sum(instrument.values())
-        total = attributed + unattributed          # instrumentation cost is excluded
+        total = attributed + unattributed          # instrumentation cost is excluded from the base
 
         matched, nested = 0, 0
         for (lid, step), ops in per_key.items():
@@ -212,9 +201,8 @@ class TorchProfilerCollector(Collector):
         top_inst = sorted(instrument.items(), key=lambda kv: -kv[1])[:10]
         status = "captured" if matched and not orphan else "partial"
         reason = "" if status == "captured" else (
-            "operations ran outside any label -- this covers functional calls "
-            "that do not appear in the module tree (F.linear and the like) "
-            "and the profiler's own cost")
+            "ops ran outside labels: functional calls not in the module tree "
+            "(F.linear etc.) and the profiler's own overhead are counted here")
         return self.declare(
             status, reason,
             keyed_regions=len(per_key),
@@ -231,4 +219,4 @@ class TorchProfilerCollector(Collector):
             instrument_top=[{"op": k, "self_time_us": round(v, 3)}
                             for k, v in top_inst],
             op_tree_calls=nested if self.op_tree else 0,
-            op_tree="offsets relative to the label start" if self.op_tree else "off")
+            op_tree="offsets relative to label start" if self.op_tree else "off")

@@ -1,12 +1,12 @@
-"""Saving, loading and fingerprinting weights.
+"""Saving, loading, and fingerprinting weights.
 
-Measuring the same model across devices requires the same weights. Even with
-the same seed, CPU and CUDA use different kernels, so training diverges -- and
-then it is impossible to tell whether the spike statistics differ because of
-the device or because the model differs.
+Measuring the same model on different devices requires the same weights. Even with
+the same seed, CPU and CUDA use different kernels, so training diverges; then it is
+impossible to tell whether spike statistics changed because of the device or because
+the model itself differs.
 
-The sha256 fingerprint is recorded in the result file so that two measurements
-can be confirmed after the fact to have used the same weights.
+The fingerprint (sha256) is recorded in the output so that two measurements can be
+confirmed afterwards to have used identical weights.
 """
 
 from __future__ import annotations
@@ -17,10 +17,7 @@ from typing import Callable, Optional
 
 
 def fingerprint(model) -> str:
-    """Fingerprint built from the state_dict contents.
-
-    Covers both the key names and the bytes of the values.
-    """
+    """Fingerprint of the state_dict contents, covering key names and value bytes."""
     h = hashlib.sha256()
     sd = model.state_dict()
     for k in sorted(sd):
@@ -34,11 +31,10 @@ def fingerprint(model) -> str:
 
 def load_or_train(model, name: str, weights_dir: str, device: str,
                   train: Optional[Callable[[], None]]) -> tuple[str, str]:
-    """Return `(origin, fingerprint)`.
+    """Return (origin, fingerprint).
 
-    The origin is one of loaded, trained or random. If a file exists in
-    `weights_dir`, training is skipped and the file is loaded; otherwise the
-    model is trained and then saved.
+    Origin is one of loaded / trained / random. If a file exists in `weights_dir`,
+    training is skipped and the file is loaded; otherwise the model is trained and saved.
     """
     import torch
 

@@ -1,4 +1,4 @@
-"""A single measurement run: attach hooks, run forward, write the unified format."""
+"""One measurement run: attach hooks, run forward, write the unified format."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from .collect.base import Collector
 from .collect.nsys import NsysCollector
+from .collect.perf import PerfCollector
 from .collect.stubs import ALL as STUB_COLLECTORS
 from .collect.torch_hooks import TorchHookCollector
 from .collect.torch_prof import TorchProfilerCollector
@@ -43,14 +44,13 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             emit_nvtx: bool = False, cover_leaves: bool = False,
             sync_regions: bool = False, membrane: bool = True,
             op_tree: bool = True, full_trace: bool = True,
-            with_stack: bool = False,
+            with_stack: bool = False, perf_reps: int = 0,
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
-    """Run one measurement.
+    """One measurement.
 
-    On GPU, what the hooks time is the CPU-side launch window, not kernel
-    execution time. Execution is asynchronous, so the two do not coincide.
-    The regions are emitted as NVTX labels as-is, and matching kernels to
-    those regions is left to Nsight Systems.
+    On GPU, hooks time the CPU-side launch window, not kernel execution. Execution
+    is asynchronous, so the two do not match. Regions are emitted as NVTX labels and
+    Nsight Systems is responsible for attaching kernels to them.
     """
     import torch
 
@@ -80,7 +80,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     args = tuple(a.to(device) if torch.is_tensor(a) else a for a in args)
     model.eval()
     with torch.no_grad():
-        model(*args, **forward_kw)          # warm-up: skip lazy init and kernel selection
+        model(*args, **forward_kw)          # warm-up: exclude lazy init and kernel selection
     if cuda:
         torch.cuda.synchronize()
 
@@ -102,14 +102,23 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             torch.cuda.synchronize()
     hooks.detach()
 
+    perf = PerfCollector()
+    if perf_reps > 0:
+        with torch.no_grad(), perf.window(perf_reps):
+            for _ in range(perf_reps):
+                model(*args, **forward_kw)
+            if cuda:
+                torch.cuda.synchronize()
+
     trace.sources.append(hooks.collect(trace, spike_dir=os.path.join(out_dir, "spikes")))
     trace.sources.append(TorchProfilerCollector(prof, op_tree=op_tree).collect(trace))
     named = {type(c).name for c in extra}
     if NsysCollector.name not in named:
-        # The report is written after the process exits, so it is empty in
-        # the same run that produced the measurement. tools/nsys_merge does
-        # the merge separately.
+        # The report is written after the process exits, so it is empty in the same
+        # run as the measurement. tools/nsys_merge performs the merge separately.
         trace.sources.append(NsysCollector().collect(trace))
+    if PerfCollector.name not in named:
+        trace.sources.append(perf.collect(trace))
     for cls in STUB_COLLECTORS:
         if cls.name not in named:
             trace.sources.append(cls().collect(trace))
@@ -119,9 +128,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
     annotate_synops(trace)
     trace.metrics = snn_metrics(trace)
 
-    # Execution-wide operator hierarchy. The profiler export is written to a
-    # temporary file, folded in and deleted -- the only file we emit is a
-    # single Chrome Trace Event JSON.
+    # Op hierarchy of the whole run. Export the profiler trace to a temp file, merge
+    # it, and delete it: the only output file is the Chrome Trace Event JSON.
     full: list[dict] = []
     if full_trace and prof is not None:
         from .emit.full_trace import events_for
@@ -137,6 +145,6 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
         src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
         if src is not None:
             src.detail["full_trace"] = detail
-    trace._full = full                       # reused when the tools rewrite the file
+    trace._full = full                       # reused when tools/ rewrite the trace
     trace_json.write(trace, os.path.join(out_dir, "xnn-trace.json"), full=full)
     return trace

@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Cross-check measurement results across devices.
+"""Compare measurement results across devices.
 
-Measuring the same weights on different devices splits the values into three
-classes.
+When the same weights are measured on different devices, values fall into three classes.
 
-  structural invariant  independent of weights and device. A mismatch means
-                        the key construction or the region tally is wrong
-  model-dependent       determined by the weights. Identical weights must
-                        produce identical values
-  device-dependent      determined by the device. Differing is normal, and
-                        that difference is what the measurement is about
+  structural    independent of weights and device; a mismatch means key or region aggregation is broken
+  model-dep.    determined by the weights; must match when the weights are the same
+  device-dep.   determined by the device; differences are expected and are what is being measured
 
   tools/evidence out-cpu out-gpu
 """
@@ -21,8 +17,8 @@ import json
 import os
 import sys
 
-# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
-# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -60,7 +56,7 @@ def spike_rows(t) -> dict:
 
 def fmt(v) -> str:
     if v is None:
-        return "-"
+        return "—"
     if isinstance(v, float):
         return f"{v:,.4f}" if abs(v) < 10 else f"{v:,.1f}"
     if isinstance(v, int):
@@ -71,28 +67,28 @@ def fmt(v) -> str:
 
 
 STRUCTURAL = [
-    ("executed MAC",     lambda t: t["metrics"]["executed_macs"]),
+    ("executed MACs",    lambda t: t["metrics"]["executed_macs"]),
     ("regions",          lambda t: len(t["regions"])),
     ("layers/calls",     lambda t: tuple(sorted((l["layer_id"], l["calls"])
-                                                for l in t["layers"]))),
+                                            for l in t["layers"]))),
     ("state memory",     lambda t: t["metrics"].get("state_bytes")),
     ("timesteps",        lambda t: t["timesteps"]),
 ]
 
 MODEL_DEP = [
-    ("weight fingerprint", lambda t: (t["env"].get("weights_sha256") or "-")[:16]),
-    ("SynOps",             lambda t: t["metrics"].get("synops")),
-    ("output latency",     lambda t: (t["metrics"].get("output_latency") or {}).get("first_spike_step")),
-    ("batch accuracy",     lambda t: t["env"].get("batch_accuracy")),
+    ("weights sha256",   lambda t: (t["env"].get("weights_sha256") or "—")[:16]),
+    ("SynOps",           lambda t: t["metrics"].get("synops")),
+    ("output latency",   lambda t: (t["metrics"].get("output_latency") or {}).get("first_spike_step")),
+    ("batch accuracy",   lambda t: t["env"].get("batch_accuracy")),
 ]
 
 DEVICE_DEP = [
-    ("device",             lambda t: t["env"].get("device")),
-    ("region timing",      lambda t: t["env"].get("region_timing")),
-    ("region time sum(us)", lambda t: round(sum(r["dur_us"] for r in t["regions"]), 1)),
-    ("attribution rate",   lambda t: prof_detail(t).get("attribution_rate")),
-    ("instrument cost(us)", lambda t: prof_detail(t).get("instrument_us")),
-    ("sync share",         lambda t: round(sync_fraction(t), 4)),
+    ("device",           lambda t: t["env"].get("device")),
+    ("region timing",    lambda t: t["env"].get("region_timing")),
+    ("region sum(us)",   lambda t: round(sum(r["dur_us"] for r in t["regions"]), 1)),
+    ("attribution rate", lambda t: prof_detail(t).get("attribution_rate")),
+    ("instr. cost(us)",  lambda t: prof_detail(t).get("instrument_us")),
+    ("sync fraction",    lambda t: round(sync_fraction(t), 4)),
 ]
 
 
@@ -100,13 +96,13 @@ def section(title, items, traces, names, check):
     print(f"  {title}")
     width = max(len(n) for n in names)
     head = "  ".join(f"{n:>{max(width, 14)}s}" for n in names)
-    print(f"    {'':22s} {head}   verdict")
+    print(f"    {'':20s} {head}   verdict")
     for label, get in items:
         vals = [get(t) for t in traces]
         same = all(v == vals[0] for v in vals)
         verdict = "" if not check else ("match" if same else "MISMATCH")
         cells = "  ".join(f"{fmt(v):>{max(width, 14)}s}" for v in vals)
-        print(f"    {label:22s} {cells}   {verdict}")
+        print(f"    {label:20s} {cells}   {verdict}")
     print()
 
 
@@ -114,11 +110,9 @@ def spikes_section(traces, names):
     keys = sorted({k for t in traces for k in spike_rows(t)})
     if not keys:
         return
-    print("  model-dependent -- spike statistics "
-          "(identical weights must match)")
+    print("  model-dependent: spike statistics (must match when weights are the same)")
     width = max(max(len(n) for n in names), 14)
-    print(f"    {'':28s} " + "  ".join(f"{n:>{width}s}" for n in names)
-          + "   verdict")
+    print(f"    {'':28s} " + "  ".join(f"{n:>{width}s}" for n in names) + "   verdict")
     for k in keys:
         rows = [spike_rows(t).get(k) for t in traces]
         for field, path in (("rate", "mean_rate"), ("dead", "dead_fraction"),
@@ -127,15 +121,13 @@ def spikes_section(traces, names):
             vals = [None if r is None else r["metrics"].get(path) for r in rows]
             same = all(v == vals[0] for v in vals)
             cells = "  ".join(f"{fmt(v):>{width}s}" for v in vals)
-            print(f"    {k + ' / ' + field:28s} {cells}   "
-                  f"{'match' if same else 'MISMATCH'}")
+            print(f"    {k + ' / ' + field:28s} {cells}   {'match' if same else 'MISMATCH'}")
     print()
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("dirs", nargs="+",
-                    help="two or more output directories to compare")
+    ap.add_argument("dirs", nargs="+", help="two or more output directories to compare")
     ap.add_argument("--models", default="fcsnn,mnist_mlp,repeated_dnn_snn")
     args = ap.parse_args()
 
@@ -145,18 +137,15 @@ def main() -> int:
         traces = [load(d, model) for d in args.dirs]
         if any(t is None for t in traces):
             missing = [n for n, t in zip(names, traces) if t is None]
-            print(f"=== {model}: skipped (missing in: {', '.join(missing)})\n")
+            print(f"=== {model}: skipped (missing: {', '.join(missing)})\n")
             continue
         print("=" * 92)
         print(f"{model}")
         print()
-        section("structural invariants -- independent of weights and device",
-                STRUCTURAL, traces, names, True)
-        section("model-dependent -- determined by the weights",
-                MODEL_DEP, traces, names, True)
+        section("structural invariants: independent of weights and device", STRUCTURAL, traces, names, True)
+        section("model-dependent: determined by weights", MODEL_DEP, traces, names, True)
         spikes_section(traces, names)
-        section("device-dependent -- differing here is the point",
-                DEVICE_DEP, traces, names, False)
+        section("device-dependent: differences are what is measured", DEVICE_DEP, traces, names, False)
 
         for label, get in STRUCTURAL:
             vals = [get(t) for t in traces]
@@ -164,8 +153,7 @@ def main() -> int:
                 print(f"  !! structural invariant mismatch: {label}")
                 bad += 1
     if bad:
-        print(f"{bad} structural invariant mismatch(es) -- check the key "
-              f"construction or the region tally")
+        print(f"{bad} structural invariant mismatch(es); check key construction or region aggregation")
     return 1 if bad else 0
 
 

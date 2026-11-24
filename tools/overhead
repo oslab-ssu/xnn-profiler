@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Instrumentation cost -- how much inserting instrumentation points slows
-execution down.
+"""Instrumentation cost: how much inserting instrumentation slows execution.
 
-Inserting measurement points changes what is being observed. The conditions
-below are measured repeatedly on the same input to separate the cost of the
-hooks themselves, of opening and closing labels, and of the profiler.
+Instrumentation changes what it observes. Six conditions are measured repeatedly on the
+same input to separate hook cost, label open/close cost, and profiler cost.
 
   base      no instrumentation
   hook      hooks only (no labels, no membrane distribution)
-  label     hooks + record_function labels
-  mem       label + membrane distribution histogram (two kernels per neuron
-            module call)
-  prof      mem + a PyTorch Profiler session
-  stack     prof + Python call stack recording (--with-stack)
+  label     hook + record_function label open/close
+  mem       label + membrane histogram (two kernels per neuron module call)
+  prof      mem + PyTorch Profiler session
+  stack     prof + Python call stacks (--with-stack)
 
   tools/overhead --model all --steps 10 --batch 64 --repeat 20
 """
@@ -27,8 +24,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
-# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -64,14 +61,13 @@ def main() -> int:
 
     dev = args.device
     if dev == "cuda" and not torch.cuda.is_available():
-        print("cuda is unavailable -- measuring on cpu", file=sys.stderr)
+        print("cuda unavailable; measuring on cpu", file=sys.stderr)
         dev = "cpu"
     torch.set_num_threads(1)
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
 
     print(f"device={dev}  batch={args.batch}  T={args.steps}  repeat={args.repeat}")
-    print(f"{'model':18s} {'cond':6s} {'median(ms)':>12s} {'stdev':>9s} "
-          f"{'vs base':>10s}")
+    print(f"{'model':18s} {'cond':6s} {'median(ms)':>11s} {'stdev':>9s} {'vs base':>10s}")
     for name in names:
         torch.manual_seed(0)
         model, fkw = build(name, num_steps=args.steps)
@@ -82,7 +78,7 @@ def main() -> int:
             with torch.no_grad():
                 model(x, **fkw)
 
-        forward()                                   # warm-up: skip lazy init
+        forward()                                   # warm-up: exclude lazy init
         base, base_sd = timed(forward, args.repeat, dev)
         rows = [("base", base, base_sd)]
 
@@ -112,8 +108,8 @@ def main() -> int:
             rows.append((tag, m, sd))
 
         for tag, m, sd in rows:
-            ratio = "-" if tag == "base" else f"{m / base:>9.2f}x"
-            print(f"{name:18s} {tag:6s} {m:12.3f} {sd:9.3f} {ratio:>10s}")
+            ratio = "—" if tag == "base" else f"{m / base:>9.2f}x"
+            print(f"{name:18s} {tag:6s} {m:11.3f} {sd:9.3f} {ratio:>10s}")
         print()
     return 0
 

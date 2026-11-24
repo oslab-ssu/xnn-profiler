@@ -1,7 +1,4 @@
-"""Collector interface.
-
-Every tool sits behind it, and only the unified format is exposed outward.
-"""
+"""Collector interface. Every tool sits behind it; only the unified format is exposed."""
 
 from __future__ import annotations
 
@@ -33,13 +30,9 @@ class Collector:
 
 
 class Unimplemented(Collector):
-    """A collector that declares only the interface contract.
-
-    It is never skipped silently; it is recorded in the provenance.
-    """
+    """Collector with only its interface contract declared. It is recorded in sources instead of being skipped silently."""
 
     def collect(self, trace: Trace, **kw: Any) -> Source:
         ok, why = self.available()
         return self.declare("unavailable",
-                            "adapter not implemented (the tool itself is available)"
-                            if ok else why)
+                            "adapter not implemented (tool is available)" if ok else why)

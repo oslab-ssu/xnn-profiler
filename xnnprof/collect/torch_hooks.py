@@ -1,19 +1,16 @@
-"""PyTorch hook collector: builds unified keys, times regions, opens labels
-and captures SNN metrics.
+"""PyTorch hook collector: unified keys, region timing, labels, and SNN metrics.
 
-Model code is never modified. Hooks are registered by walking the model tree
-and matching on layer type, so DNN, SNN and mixed models all go through the
-same path. A region denotes one execution of the unified key
-`(layer_id, timestep)` and is the correlation basis for every other tool.
+The model code is never modified. Hooks are registered by walking the module tree and
+matching layer types, so DNN, SNN, and hybrid models go through the same path. A region
+is one execution of the unified key `(layer_id, timestep)` and is the correlation basis with other tools.
 
-The hooks do two things.
+Hooks do two things.
 
-  build unified keys     take timestamps immediately before and after the
-  and regions            call to get `[start, end)`, assign the timestep from
-                         the call count, and open/close the key string
-                         `fc1@t3` as a record_function and NVTX label
-  capture SNN metrics    MACs, spike arrays, state tensor size -- values no
-                         existing tool observes
+  keys and regions        take `[start, end)` from the times just before and after a call,
+                          assign the timestep from the call count, and open/close the key
+                          string `fc1@t3` as a record_function / NVTX label
+  SNN metrics             MACs, spike arrays, state tensor sizes: values existing tools
+                          do not observe
 """
 
 from __future__ import annotations
@@ -25,7 +22,7 @@ from ..observations import MEM_BINS, MEM_IN_RANGE
 from ..schema import DENSE, Layer, MembraneRef, Region, SpikeRef, STATE, Trace
 from .base import Collector, REGION
 
-INSTRUMENT_LABEL = "xnn::instrument"   # label holding instrumentation's own cost
+INSTRUMENT_LABEL = "xnn::instrument"   # label that holds instrumentation's own cost
 
 
 def is_snn(module) -> bool:
@@ -33,12 +30,11 @@ def is_snn(module) -> bool:
 
 
 def theta_of(module):
-    """Firing threshold theta, read once at `attach()` and cached.
+    """Threshold θ, read once and cached at `attach()` rather than during measurement.
 
-    snntorch keeps `threshold` as a tensor buffer, so calling `float()` on it
-    inside a hook pulls the value off the GPU and forces a host sync -- which
-    makes the instrumentation reorder the execution it is measuring. If the
-    value cannot be read, the metric is simply not produced.
+    snntorch keeps `threshold` as a tensor buffer; calling `float()` on it inside a hook
+    copies it off the GPU and forces a host sync, so instrumentation would change the
+    execution order being measured. If it cannot be read, the metric is not computed.
     """
     t = getattr(module, "threshold", None)
     if t is None:
@@ -51,11 +47,11 @@ def theta_of(module):
 
 
 def layer_id_of(name: str, module) -> str:
-    """The `layer_id` of the unified key; numeric names get their type appended.
+    """`layer_id` of the unified key. Numeric names get the type appended to be identifiable.
 
-    Children of an `nn.Sequential` come out of `named_modules()` as indices
-    such as `1` or `dnn1.0`. Left as-is they are unreadable in the result
-    file, so they are normalized to `1:Linear`, `dnn1.0:Conv2d`.
+    Children of `nn.Sequential` appear in `named_modules()` as indices like `1` or `dnn1.0`.
+    Used as-is they are unreadable in the output, so they are normalized to
+    `1:Linear`, `dnn1.0:Conv2d`.
     """
     head, _, last = name.rpartition(".")
     if last.isdigit():
@@ -64,23 +60,20 @@ def layer_id_of(name: str, module) -> str:
 
 
 def targets(model, cover_leaves: bool = False):
-    """Modules to instrument. Walks the tree without assuming a model shape.
+    """Modules to instrument. Walks the tree without assuming model structure.
 
-    The default rule covers modules that perform MACs (`nn.Linear`,
-    `nn.Conv2d`) and SNN neuron modules, which hold state and are called once
-    per timestep. Containers such as `nn.Sequential` are excluded: they would
-    create an outer region enclosing their children and count the same time
-    twice.
+    Default rule: modules that produce MACs (`nn.Linear`, `nn.Conv2d`) and SNN neuron
+    modules that hold state and are called every timestep. Containers (`nn.Sequential`
+    etc.) are excluded: a parent region covering its children would double-count time.
 
-    With `cover_leaves` the rule widens to every module without children.
-    That gives a region for the time actually spent in modules with no MACs
-    (`nn.ReLU`, `nn.MaxPool2d`, `nn.Flatten`), at the cost of more regions and
-    more instrumentation overhead. It exists so the attribution rate of the
-    two rules can be compared.
+    `cover_leaves` widens this to every module without children, capturing the time of
+    MAC-free modules (`nn.ReLU`, `nn.MaxPool2d`, `nn.Flatten`) as regions, at the cost of
+    more regions and more instrumentation overhead. It exists to measure the
+    attribution-rate difference between the two rules.
     """
     import torch.nn as nn
     for name, m in model.named_modules():
-        if not name:                                  # the root module
+        if not name:                                  # root module
             continue
         if isinstance(m, (nn.Linear, nn.Conv2d)) or is_snn(m):
             yield name, m
@@ -111,12 +104,11 @@ def _fan(module) -> dict:
 
 
 def looks_binary(x) -> bool:
-    """Decide whether a layer is spike-driven, i.e. whether its input is binary.
+    """Spike-driven layer check: is the input a binary tensor?
 
-    Must never be called inside a measured region: it adds a kernel that scans
-    the whole tensor, mixing instrumentation cost into the measurement. The
-    first call's input is kept by reference only and tested in `collect()`
-    once measurement is done.
+    Must not be called inside the measured region: it adds a kernel that scans the whole
+    tensor, mixing instrumentation cost into the measurement. Only a reference to the
+    first call's input is kept, and the check runs in `collect()` after measurement.
     """
     import torch
     if x is None or not torch.is_tensor(x) or x.numel() == 0:
@@ -159,12 +151,11 @@ class TorchHookCollector(Collector):
     def _sync(self) -> None:
         """Wait for the GPU at region boundaries.
 
-        The GPU runs asynchronously, so what the hooks time is the launch
-        window, not kernel execution. A layer called while the queue is full
-        absorbs the wait caused by earlier layers, which makes a neuron module
-        with no arithmetic look slower than a matrix multiply. Synchronizing at
-        every boundary makes each region time that layer's real GPU time, but
-        removes the overlap between layers, so the total exceeds real wall time.
+        The GPU runs asynchronously, so hook-measured time is the launch window, not
+        kernel execution. A layer called while the queue is full absorbs the wait for
+        earlier layers, so a compute-free neuron module can look slower than a matmul.
+        Syncing at every boundary makes region time the layer's real GPU time, but
+        removes overlap between layers, so the total exceeds the real run time.
         """
         if not self.sync_regions:
             return
@@ -181,10 +172,10 @@ class TorchHookCollector(Collector):
             if self.membrane and is_snn(m):
                 theta = theta_of(m)
                 if theta is None:
-                    self._mem_skip[lid] = "could not read the threshold attribute"
+                    self._mem_skip[lid] = "could not read threshold attribute"
                 else:
                     self._theta[lid] = theta
-        self._t0 = time.perf_counter()        # set the origin after reading all thetas
+        self._t0 = time.perf_counter()        # set the origin after all θ are read
         for name, m in targets(model, self.cover_leaves):
             lid = layer_id_of(name, m)
             self._handles.append(m.register_forward_pre_hook(self._pre(lid)))
@@ -194,17 +185,14 @@ class TorchHookCollector(Collector):
         for h in self._handles:
             h.remove()
         self._handles = []
-        for stack in self._open_labels.values():          # close labels left by an exception
+        for stack in self._open_labels.values():          # close labels left open by exceptions
             while stack:
                 self._close_label(stack.pop())
         self._open_labels.clear()
 
-    # ---------------- opening and closing labels ----------------
+    # ---------------- opening/closing labels ----------------
     def _open_label(self, key: str):
-        """Stamp the unified key string into each tool's output.
-
-        Returns the handle used to close it.
-        """
+        """Record the unified key string in tool output. Returns the handle used to close it."""
         rf = nvtx = None
         if self.emit_labels:
             try:
@@ -239,7 +227,7 @@ class TorchHookCollector(Collector):
 
     def _pre(self, lid: str):
         def pre(mod, inputs):
-            self._sync()                  # drain the previous layer's kernels first
+            self._sync()                  # drain earlier layers' kernels before starting
             a = self._acc.setdefault(lid, {})
             step = a.get("calls", 0)
             self._open_labels.setdefault(lid, []).append(
@@ -252,9 +240,8 @@ class TorchHookCollector(Collector):
             import torch
             self._sync()                  # wait for this layer's kernels to finish
             now = time.perf_counter()
-            # Close the label first. The tensor checks and copies below are
-            # instrumentation cost; left inside the label they would be
-            # attributed to this layer's compute time.
+            # Close the label first. The tensor checks and copies below are instrumentation
+            # cost; left inside the label they would be misattributed to this layer.
             stack = self._open_labels.get(lid)
             if stack:
                 self._close_label(stack.pop())
@@ -276,7 +263,7 @@ class TorchHookCollector(Collector):
             if x is not None:
                 a["macs"] += macs_of(mod, x, output)
                 if step == 0:
-                    a["probe"] = x.detach()   # tested after measurement (looks_binary)
+                    a["probe"] = x.detach()   # checked after measurement (looks_binary)
             if opened is not None:
                 dur = (now - opened) * 1e6
                 a["self_time_us"] += dur
@@ -287,25 +274,22 @@ class TorchHookCollector(Collector):
 
             if a["is_snn"]:
                 spk = output[0] if isinstance(output, tuple) else output
-                # The number of state tensors varies by neuron type: Leaky is
-                # (spk, mem), Synaptic is (spk, syn, mem), Alpha is
-                # (spk, syn_exc, syn_inh, mem). Only the first item is the
-                # spike; everything after it is persistent state.
+                # Neuron types differ in state tensor count: Leaky (spk, mem),
+                # Synaptic (spk, syn, mem), Alpha (spk, syn_exc, syn_inh, mem).
+                # Only the first item is the spike; the rest are persistent state.
                 states = [t for t in (output[1:] if isinstance(output, tuple) else ())
                           if torch.is_tensor(t)]
                 if torch.is_tensor(spk):
-                    # Accumulate on-device. Calling .cpu() each step would
-                    # force a sync per step and let the instrumentation
-                    # reorder execution.
+                    # Keep on device. Calling .cpu() every step would sync the GPU
+                    # each step and the instrumentation would change execution order.
                     self._spikes.setdefault(lid, []).append(
                         spk.detach().to(torch.uint8))
                 if states:
                     a["state_bytes"] = sum(int(t.numel() * t.element_size())
                                            for t in states)
                     a["state_tensors"] = len(states)
-                    # The membrane potential is the last state tensor of the
-                    # output tuple: Leaky (spk, mem), Synaptic (spk, syn, mem),
-                    # Alpha (spk, syn_exc, syn_inh, mem).
+                    # Membrane potential is the last state tensor: Leaky (spk, mem),
+                    # Synaptic (spk, syn, mem), Alpha (spk, syn_exc, syn_inh, mem).
                     if self.membrane:
                         self._bucket(lid, states[-1])
             if inst is not None:
@@ -313,31 +297,28 @@ class TorchHookCollector(Collector):
         return post
 
     def _bucket(self, lid: str, mem) -> None:
-        """Convert the membrane potential to a 66-bin histogram on-device.
+        """Convert membrane potential to a 66-bin histogram and accumulate it on device.
 
-        It costs two kernels and never pulls a value to the host, so there is
-        no host sync. The raw tensor is not retained: memory is one of the
-        things being measured, and holding that much per step would change the
-        measurement.
+        Two kernels and no copy to host, so no host sync. Raw tensors are not kept:
+        memory is what is being measured, and instrumentation holding that much every
+        step would change the subject.
         """
         import torch
         theta = self._theta.get(lid)
         if theta is None:
             return
-        # Bins are equal width, so the bin index is arithmetic, not a search.
-        #   mem < 0 -> 0 | [0, theta) -> 1~64 | mem >= theta -> 65
-        # Identical to `bucketize` but without a per-element binary search.
-        # On CPU that matters at 1,000 neurons x batch 64 x T=10.
+        # Bins have uniform width, so the bin is found by division, not boundary search.
+        #   mem < 0 -> 0 | [0, θ) -> 1~64 | mem >= θ -> 65
+        # Same result as `bucketize` without a per-element binary search; on CPU this
+        # matters at 1,000 neurons x batch 64 x T=10.
         scale = MEM_IN_RANGE / theta
         idx = (mem.detach().reshape(-1) * scale).floor_().add_(1).clamp_(
             0, MEM_BINS - 1).to(torch.int64)
-        # Counting differs by device; both paths give identical results
-        # (verified by checksum).
-        #   CUDA  `bincount` pulls the input min/max to the host to size its
-        #         output (aten::_local_scalar_dense), forcing a full GPU sync
-        #         on every call. The bin count is fixed, so preallocate the
-        #         output and accumulate into it to remove that round trip.
-        #   CPU   there is no sync to speak of, and `bincount` beats scatter_add_
+        # Counting differs by device; both paths give the same result (checksums compared).
+        #   CUDA  `bincount` copies the input min/max to host to size its output
+        #         (aten::_local_scalar_dense), a full GPU sync per call. The bin count is
+        #         fixed, so preallocate the output and add into it to avoid the round trip
+        #   CPU   no sync concept, and `bincount` is faster than scatter_add_
         if idx.is_cuda:
             out = torch.zeros(MEM_BINS, dtype=torch.int64, device=idx.device)
             out.scatter_add_(0, idx, torch.ones_like(idx))
@@ -345,9 +326,9 @@ class TorchHookCollector(Collector):
             out = torch.bincount(idx, minlength=MEM_BINS)
         self._hist.setdefault(lid, []).append(out)
 
-    # ---------------- into the unified format ----------------
+    # ---------------- to the unified format ----------------
     def membrane_arrays(self) -> dict:
-        """`[T, 66]` integer arrays, pulled to the host once after measurement."""
+        """`[T, 66]` integer arrays, copied to host once after measurement."""
         import numpy as np
         import torch
         return {k: np.ascontiguousarray(torch.stack(v).cpu().numpy(), dtype=np.int64)
@@ -405,7 +386,7 @@ class TorchHookCollector(Collector):
                           else "cpu-launch-window",
             labels="record_function" if self.emit_labels else "none",
             membrane=("off" if not self.membrane else
-                      f"{len(self._hist)} layers" if self._hist else "nothing collected"))
+                      f"{len(self._hist)} layers" if self._hist else "none computed"))
         if self._mem_skip:
             detail["membrane_skipped"] = dict(self._mem_skip)
         return self.declare("captured", **detail)

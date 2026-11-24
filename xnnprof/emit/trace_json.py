@@ -1,17 +1,16 @@
-"""The unified format is Chrome Trace Event JSON.
+"""Unified format = Chrome Trace Event JSON.
 
-Perfetto, Speedscope, Tracy and the existing VS Code extension all read it.
-Rather than inventing a second format, our additional information rides on
-this one's extension points.
+Perfetto, Speedscope, Tracy, and the existing VS Code extension all read it.
+There is no separate format; our extra information goes into its extension points.
 
-  tid        one layer = one track, so the time loop reads as repeated slices
-  cat        dense | spike | state -- a domain filter in the viewer
+  tid        one layer = one track; the time-step loop shows as repeated slices on it
+  cat        dense | spike | state, a domain filter in the viewer
   args       unified key (timestep), per-layer MACs, spike-driven flag,
-             per-op self time from the PyTorch Profiler attributed to the
-             region, and, for a spiking layer, the new metrics (args.snn)
-  ph="i"     one summary marker holding the model-level new metrics
-  ph="C"     per-timestep spike rate counter (Perfetto draws it as a graph)
-  "xnn"      top-level extension key. Viewers read only traceEvents and skip it
+             PyTorch Profiler per-op self time attributed to the region,
+             and for spiking layers the new metrics (args.snn)
+  ph="i"     one summary marker holding model-level metrics
+  ph="C"     per-timestep spike-rate counters (plotted as graphs in Perfetto)
+  "xnn"      top-level extension key; viewers read only traceEvents and skip it
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ def _tracks(trace: Trace) -> dict[str, int]:
 
 
 def _snn_args(sp, timestep) -> dict[str, Any]:
-    """New metrics attached to a spiking layer's region."""
+    """New metrics attached to spiking-layer regions."""
     m = sp.metrics or {}
     series = m.get("per_timestep_rate") or []
     out: dict[str, Any] = {"neurons": sp.neurons}
@@ -57,17 +56,14 @@ def _snn_args(sp, timestep) -> dict[str, Any]:
         if ss.get("reached_step") is None and ss.get("reason"):
             out["steady_state"] = f"not reached ({ss['reason']})"
         c = ss.get("c_t") or []
-        # c_t[i] is the value for step i+1; step 0 has no preceding step.
+        # c_t[i] belongs to step i+1; step 0 has no previous step.
         if timestep is not None and 1 <= timestep <= len(c):
             out["pattern_change_c_t"] = c[timestep - 1]
     return out
 
 
 def _mem_args(mb, timestep) -> dict[str, Any]:
-    """Membrane distribution.
-
-    Only that step's values ride on the region; the full array stays in a file.
-    """
+    """Membrane distribution. A region carries only its own step; full arrays stay in files."""
     m = mb.metrics or {}
     out: dict[str, Any] = {"threshold": mb.threshold, "bins": mb.bins,
                            "path": mb.path}
@@ -82,15 +78,15 @@ def _mem_args(mb, timestep) -> dict[str, Any]:
 
 
 def _summary(trace: Trace) -> dict[str, Any]:
-    """Model-level metrics.
-
-    They belong to no single region, so they are emitted as their own marker.
-    """
+    """Model-level values. They belong to no single region, so they go in a separate marker."""
     env = trace.env or {}
     out: dict[str, Any] = dict(trace.metrics or {})
-    for k in ("device", "region_timing", "weights_sha256", "batch_accuracy", "gpu"):
+    for k in ("device", "region_timing", "weights_sha256", "batch_accuracy"):
         if env.get(k) is not None:
             out[k] = env[k]
+    # Device name goes in gpu_name so it does not clash with region args.gpu (kernel stats dict)
+    if env.get("gpu") is not None:
+        out["gpu_name"] = env["gpu"]
     src = next((s for s in trace.sources if s.collector == "torch_profiler"), None)
     if src is not None and (src.detail or {}).get("attribution_rate") is not None:
         out["attribution_rate"] = src.detail["attribution_rate"]
@@ -146,8 +142,8 @@ def build(trace: Trace, pid: int = 1,
         ev.append({"ph": "X", "name": name, "cat": r.domain,
                    "ts": round(r.ts_us, 3), "dur": round(r.dur_us, 3),
                    "pid": pid, "tid": t, "args": args})
-        # Operator call hierarchy inside the region. Stacked as nested slices
-        # on the same track, the unified key becomes the Flame Graph root.
+        # Operator call hierarchy inside the region. Stacked as nested slices on the
+        # same track, the unified key becomes the root of the flame graph.
         for c in r.op_tree:
             ev.append({"ph": "X", "name": c["name"], "cat": "op",
                        "ts": round(r.ts_us + c["off_us"], 3),
@@ -156,16 +152,16 @@ def build(trace: Trace, pid: int = 1,
                        "args": {"depth": c["depth"], "region": name,
                                 **({"clamped": True} if c.get("clamped") else {})}})
 
-    # Model-level metrics belong to no region, so they go out as one marker.
+    # Model-level values belong to no region, so emit them as one marker.
     summary = _summary(trace)
     if summary:
         t0 = min((r.ts_us for r in trace.regions), default=0.0)
         ev.append({"ph": "M", "name": "thread_name", "pid": pid, "tid": 0,
                    "args": {"name": "xnn summary"}})
-        ev.append({"ph": "i", "name": "xnn new metrics", "cat": "xnn", "s": "p",
+        ev.append({"ph": "i", "name": "xnn model metrics", "cat": "xnn", "s": "p",
                    "ts": round(t0, 3), "pid": pid, "tid": 0, "args": summary})
 
-    # Per-timestep firing rate as a counter -- a graph across the time axis.
+    # Per-timestep firing rate as counters, plotted along the time axis.
     for sp in trace.spikes:
         series = (sp.metrics or {}).get("per_timestep_rate") or []
         base = [r for r in trace.regions if r.layer_id == sp.layer_id]
@@ -176,12 +172,11 @@ def build(trace: Trace, pid: int = 1,
                        "ts": round(ts, 3), "pid": pid,
                        "args": {"rate": round(float(rate), 6)}})
 
-    # Execution-wide operator hierarchy. Its own pid keeps it out of the
-    # layer tracks.
+    # Op hierarchy of the whole run, on its own pid so it stays apart from layer tracks.
     if full:
         ev.extend(full)
 
-    # At equal timestamps the longer slice must come first to keep nesting.
+    # At equal timestamps the longer slice must come first to keep nesting intact.
     ev.sort(key=lambda e: (e.get("ts", -1), 0 if e["ph"] == "M" else 1,
                            -e.get("dur", 0)))
     return {

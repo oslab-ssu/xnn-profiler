@@ -1,13 +1,12 @@
-"""Metrics that can only be derived from the trace as a whole.
+"""New metrics that can only be computed from the whole trace.
 
-Per-layer values come from the collectors and spike-array values come from
-`observations`; this module derives only what needs both.
+Per-layer values come from collectors and spike-array values from observations.
+This module computes only the items that need both.
 
-  output latency        first timestep at which the output layer's spike rate
-                        is non-zero
-  state memory          total size of the state tensors carried across timesteps
-  steady-state step     gathers the per-layer results (formula in `steady.py`)
-  membrane distribution gathers the per-layer histogram summaries
+  output onset latency   first timestep at which the output layer's spike rate is nonzero
+  state memory           total size of state tensors kept across timesteps
+  steady-state step      gathers per-layer results (formula in `steady.py`)
+  membrane distribution  gathers per-layer histogram summaries
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from .schema import Trace
 
 
 def execution_order(trace: Trace) -> list[str]:
-    """Order in which layers first appear, sorted by region start time."""
+    """Order in which layers first appear, by region start time."""
     seen, out = set(), []
     for r in sorted(trace.regions, key=lambda r: r.ts_us):
         if r.layer_id not in seen:
@@ -26,7 +25,7 @@ def execution_order(trace: Trace) -> list[str]:
 
 
 def output_layer(trace: Trace) -> str:
-    """Treat the last spiking layer in execution order as the output layer."""
+    """The last spiking layer in execution order is taken as the output layer."""
     order = execution_order(trace)
     spiking = {sp.layer_id for sp in trace.spikes}
     for lid in reversed(order):
@@ -36,7 +35,7 @@ def output_layer(trace: Trace) -> str:
 
 
 def output_latency(trace: Trace):
-    """Undefined for a model with no spiking layer (a pure DNN)."""
+    """Undefined for models without spiking layers (pure DNN)."""
     lid = output_layer(trace)
     sp = next((s for s in trace.spikes if s.layer_id == lid), None)
     if sp is None:
@@ -52,7 +51,7 @@ def output_latency(trace: Trace):
 
 
 def steady_state(trace: Trace) -> dict:
-    """Per-layer steady-state convergence step. Formula in `steady.py`."""
+    """Per-layer steady-state step. Formula in `steady.py`."""
     out = {}
     for sp in trace.spikes:
         ss = sp.steady_state or {}
@@ -66,9 +65,7 @@ def steady_state(trace: Trace) -> dict:
 
 
 def membrane_distribution(trace: Trace) -> dict:
-    """Per-layer membrane distribution summary. Full arrays live in the
-    observation output files.
-    """
+    """Per-layer membrane-potential summary. Full arrays are in the observation files."""
     out = {}
     for mb in trace.membranes:
         m = mb.metrics or {}
@@ -84,7 +81,7 @@ def membrane_distribution(trace: Trace) -> dict:
 
 
 def snn_metrics(trace: Trace) -> dict:
-    """Omit the key for anything not derived. '0' and 'undefined' differ."""
+    """Items that are not computed get no key. '0' and 'undefined' are different."""
     out = {"executed_macs": trace.executed_macs()}
     state = sum(l.state_bytes for l in trace.layers)
     lat = output_latency(trace)

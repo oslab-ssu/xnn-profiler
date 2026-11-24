@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""Instrumentation coverage -- how much time goes unattributed under each
-registration rule.
+"""Instrumentation coverage: how much time goes unattributed under each registration rule.
 
-Hooks are registered by walking the model tree, so operations that do not
-appear in the tree as a module, and operations of modules excluded from
-registration, belong to no region. That share is measured so the two rules can
-be compared.
+Hooks are registered by walking the module tree, so ops that do not appear as modules
+and ops of excluded modules belong to no region. That share is measured to compare
+two rules.
 
-  mac+neuron     modules that perform MACs + SNN neuron modules (current rule)
-  leaf-modules   every module without children (including ReLU, MaxPool2d,
-                 Flatten)
+  mac+neuron     modules producing MACs + SNN neuron modules (current rule)
+  leaf-modules   every module without children (including ReLU, MaxPool2d, Flatten)
 
   tools/coverage --steps 10 --batch 64
 """
@@ -22,8 +19,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# When stdout is a pipe, Windows falls back to cp949 and non-ASCII symbols
-# raise UnicodeEncodeError (this happens under `nsys profile`). Pin UTF-8.
+# When output is piped, Windows falls back to cp949 and non-ASCII symbols raise
+# UnicodeEncodeError (e.g. under nsys profile). Force UTF-8.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -43,7 +40,7 @@ def measure(name: str, steps: int, batch: int, leaves: bool, memory: bool) -> di
     model.eval()
     x = torch.rand(batch, 1, 28, 28)
     with torch.no_grad():
-        model(x, **fkw)                              # warm-up: skip lazy init
+        model(x, **fkw)                              # warm-up: exclude lazy init
 
     trace = Trace(run_id="coverage", model_id=name, timesteps=steps, batch=batch)
     c = TorchHookCollector(cover_leaves=leaves)
@@ -76,8 +73,8 @@ def main() -> int:
 
     print(f"batch={args.batch}  T={args.steps}  repeat={args.repeat}"
           f"  profile_memory={args.profile_memory}")
-    print(f"{'model':18s} {'rule':14s} {'layers':>7s} {'regions':>8s} "
-          f"{'attr.rate(med)':>15s} {'unattr.(us)':>12s} {'instr.(us)':>11s}")
+    print(f"{'model':18s} {'rule':14s} {'layers':>6s} {'regions':>7s} "
+          f"{'attrib(median)':>14s} {'unattrib(us)':>12s} {'instr(us)':>9s}")
     for name in names:
         for leaves in (False, True):
             runs = [measure(name, args.steps, args.batch, leaves, args.profile_memory)
@@ -85,12 +82,11 @@ def main() -> int:
             runs.sort(key=lambda d: d["attribution_rate"])
             mid = runs[len(runs) // 2]
             tag = "leaf-modules" if leaves else "mac+neuron"
-            print(f"{name:18s} {tag:14s} {mid['layers']:7d} {mid['regions']:8d} "
-                  f"{mid['attribution_rate']:15.1%} {mid['unattributed_us']:12,.0f} "
-                  f"{mid['instrument_us']:11,.0f}")
+            print(f"{name:18s} {tag:14s} {mid['layers']:6d} {mid['regions']:7d} "
+                  f"{mid['attribution_rate']:14.1%} {mid['unattributed_us']:12,.0f} "
+                  f"{mid['instrument_us']:9,.0f}")
             for o in (mid.get("unattributed_top") or [])[:3]:
-                print(f"{'':33s} unattributed {o['op']:32s} "
-                      f"{o['self_time_us']:>10,.1f}us")
+                print(f"{'':33s} unattributed {o['op']:32s} {o['self_time_us']:>10,.1f}us")
         print()
     return 0
 
