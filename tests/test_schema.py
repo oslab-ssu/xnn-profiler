@@ -409,6 +409,11 @@ def test_mlir_static_parse():
     assert st["per_key"]["fc2@t0"]["linalg.matmul"] == 1
     assert st["alloc_bytes"]["fc2@t0"] == 80 and st["global_bytes"] == 320
     assert st["shared"]["lif1@t0"]["arith.constant"] == 1, "fused location"
+    assert st["macs"]["fc2@t0"] == 2 * 8 * 8, "matmul MACs from operand shapes"
+    from xnnprof.collect.mlir_static import contraction_macs
+    conv = ("linalg.conv_2d_nchw_fchw ins(%p, %w : tensor<64x1x30x30xf32>, "
+            "tensor<16x1x3x3xf32>) outs(%b : tensor<64x16x28x28xf32>) -> t")
+    assert contraction_macs("linalg.conv_2d_nchw_fchw", conv) == 64 * 16 * 28 * 28 * 9
     assert p["attrs"]["provenance"]["timesteps"] == 4
 
     d = tempfile.mkdtemp()

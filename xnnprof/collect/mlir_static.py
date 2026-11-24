@@ -37,6 +37,27 @@ MEMREF = re.compile(r"memref<([^>]*)>")
 ELEM_BYTES = {"f64": 8, "i64": 8, "f32": 4, "i32": 4, "f16": 2, "bf16": 2,
               "i16": 2, "i8": 1, "i1": 1}
 SKIP_OPS = ("builtin.module",)
+SHAPE = re.compile(r"(?:tensor|memref)<([0-9x]+)x[a-z]+\d*[,>]")
+INS_OUTS = re.compile(r"ins\([^:]*:([^)]*)\)\s*outs\([^:]*:([^)]*)\)")
+
+
+def contraction_macs(name: str, line: str) -> Optional[int]:
+    """Multiply-accumulates of a named linalg contraction, from its operand shapes."""
+    m = INS_OUTS.search(line)
+    if not m:
+        return None
+    ins = [list(map(int, s.split("x"))) for s in SHAPE.findall(m.group(1) + ">")]
+    outs = [list(map(int, s.split("x"))) for s in SHAPE.findall(m.group(2) + ">")]
+    if not outs or len(ins) < 2:
+        return None
+    a, b, o = ins[0], ins[1], outs[0]
+    if name == "linalg.matmul" and len(a) == 2 and len(b) == 2:
+        return a[0] * a[1] * b[1]
+    if name == "linalg.batch_matmul" and len(a) == 3 and len(b) == 3:
+        return a[0] * a[1] * a[2] * b[2]
+    if name == "linalg.conv_2d_nchw_fchw" and len(b) == 4 and len(o) == 4:
+        return o[0] * o[1] * o[2] * o[3] * b[1] * b[2] * b[3]
+    return None
 
 
 def memref_bytes(spec: str) -> Optional[int]:
@@ -110,14 +131,18 @@ def level_stats(parsed: dict[str, Any], level: str) -> dict[str, Any]:
     per_key: dict[str, Counter] = defaultdict(Counter)
     shared: dict[str, Counter] = defaultdict(Counter)
     alloc: dict[str, int] = defaultdict(int)
+    macs: dict[str, int] = defaultdict(int)
     global_bytes = 0
     for name, keys, ln in ops:
         if name == "memref.global":
             m = MEMREF.search(ln)
             b = memref_bytes(m.group(1)) if m else None
             global_bytes += b or 0
+        mac = contraction_macs(name, ln) if name.startswith("linalg.") else None
         for k in keys:
             per_key[k][name] += 1
+            if mac:
+                macs[k] += mac
             if len(keys) > 1:
                 shared[k][name] += 1
             if name == "memref.alloc":
@@ -126,7 +151,8 @@ def level_stats(parsed: dict[str, Any], level: str) -> dict[str, Any]:
                 alloc[k] += b or 0
     unkeyed = Counter(n for n, k, _ in ops if not k)
     return {"level": level, "total": total, "per_key": per_key, "shared": shared,
-            "alloc_bytes": alloc, "global_bytes": global_bytes, "unkeyed": unkeyed}
+            "alloc_bytes": alloc, "macs": macs, "global_bytes": global_bytes,
+            "unkeyed": unkeyed}
 
 
 def count_llvm_ir(text: str) -> Counter:
@@ -196,7 +222,7 @@ class MlirStaticCollector(Collector):
         known = {(r.layer_id, r.timestep) for r in trace.regions}
         lids = {l.layer_id for l in trace.layers}
         unmatched: set[str] = set()
-        expansion, eliminated = {}, {}
+        expansion, eliminated, macs_cmp = {}, {}, {}
         for lv in LEVELS:
             if lv not in files:
                 continue
@@ -222,13 +248,26 @@ class MlirStaticCollector(Collector):
                 if r is not None:
                     r.ir[lv] = {"ops": sum(c.values()),
                                 "shared_ops": sum(st["shared"].get(key, {}).values())}
+                    if lv == "linalg" and st["macs"].get(key):
+                        r.ir[lv]["macs"] = st["macs"][key]
                     if lv == "bufferized" and st["alloc_bytes"].get(key):
                         r.ir["alloc_bytes"] = st["alloc_bytes"][key]
+            layer_macs: dict[str, int] = defaultdict(int)
+            for key, v in st["macs"].items():
+                layer_macs[_split(key)[0]] += v
             for lid, c in per_layer.items():
                 layer = trace.layer(lid)
                 d = layer.extra.setdefault("ir", {})
                 d[lv] = {"ops": sum(c.values()), "op_types": dict(c.most_common(8)),
                          "shared_ops": sum(shared_layer[lid].values())}
+                if lv == "linalg" and layer_macs.get(lid):
+                    d[lv]["static_macs"] = layer_macs[lid]
+                    d[lv]["executed_macs"] = layer.macs
+            if lv == "linalg":
+                total_static = sum(st["macs"].values())
+                macs_cmp = {"static": total_static, "executed": trace.executed_macs(),
+                            "static_over_executed": (round(total_static / trace.executed_macs(), 6)
+                                                     if trace.executed_macs() else None)}
             present = {_split(k) for k in st["per_key"]}
             gone = sorted(f"{l}@t{s}" for l, s in known - present if l in lids)
             eliminated[lv] = gone
@@ -257,7 +296,7 @@ class MlirStaticCollector(Collector):
                                    ["no LLVM IR (.ll); op counts stop at the LLVM dialect"]))
         return self.declare(
             status, reason, path=self.path, files=sorted(files), provenance=prov,
-            execution_check=check, ops_per_level=expansion,
+            execution_check=check, ops_per_level=expansion, macs=macs_cmp,
             eliminated={lv: {"count": len(v), "keys": v[:20]} for lv, v in eliminated.items()},
             unmatched_keys=sorted(unmatched)[:20],
             note=("ops are attributed by the NameLoc layer@tN set at export; a region that "

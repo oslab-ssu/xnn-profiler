@@ -116,6 +116,10 @@ def summary(trace: Trace) -> str:
             out.append(f"      IR ops {lv}")
             if gone:
                 out.append(f"      regions eliminated by the compiler {gone}")
+            mc = d.get("macs") or {}
+            if mc.get("static"):
+                out.append(f"      MACs compiled {mc['static']:,} / executed {mc['executed']:,} "
+                           f"({mc['static_over_executed']:.1%})")
             if chk:
                 out.append(f"      compiled output vs PyTorch max |diff| {chk.get('max_abs_diff')}")
 
