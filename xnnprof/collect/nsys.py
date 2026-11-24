@@ -111,6 +111,9 @@ class NsysCollector(Collector):
     def collect(self, trace: Trace, **kw: Any):
         import sqlite3
 
+        # Values from an earlier merge must not outlive a failed one.
+        for r in trace.regions:
+            r.gpu = {}
         if not self.report:
             return self.declare("unavailable", "no report path given (--nsys-report)")
         db, why = sqlite_for(self.report, self.export)

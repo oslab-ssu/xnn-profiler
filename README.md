@@ -48,6 +48,7 @@ tools/xnnprof --model fcsnn --device cuda --weights weights --out out-gpu
 | `--no-membrane` | Disabled | Disable membrane potential distribution collection. Enable this option when measuring host synchronization overhead (see notes below) |
 | `--no-full-trace` | Disabled | Disable the execution-wide operator trace. Operations outside registered profiling regions will not be captured |
 | `--nsys` | Disabled | Run profiling under `nsys profile` and automatically merge the generated report into the trace |
+| `--ncu` | Disabled | Run profiling under Nsight Compute and merge per-kernel hardware counters into regions. Single model only; implies `--no-torch-profiler`; cannot be combined with `--nsys` |
 | `--with-stack` | Disabled | Capture Python call stacks. Increases execution-wide track depth from 6 to 19, output file size by approximately 3x, and execution time by 2.5–3.4x |
 | `--no-op-tree` | Disabled | Disable the operator call hierarchy within profiling regions. The operator hierarchy is required for Flame Graph visualization |
 | `--perf N` | `0` | Count N uninstrumented forward passes with `perf stat`. Linux only; process-wide values (see below) |
@@ -224,6 +225,35 @@ tools/xnnprof --model fcsnn --train 0 --weights weights --device cpu --perf 50 -
 perf counts per process, so the values are **process-wide** and are not attributed to layers or regions (`attribution: process-global`). They are recorded in the `perf` entry of `sources` (top-level `xnn` key), both as totals and per forward, together with IPC and miss rates.
 
 Requirements: Linux, `perf` on `PATH`, and `kernel.perf_event_paranoid` of 2 or lower (or root). Without `--perf`, or when these are not met, the `perf` source is recorded as `unavailable` with the reason. At 2 (user-only counting), kernel-side events such as `context-switches` always read 0, so they are dropped and listed under `excluded_events`.
+
+## Kernel Counters with Nsight Compute
+
+`--ncu` relaunches the measurement under `ncu` and merges the report into regions once the child exits, the same way `--nsys` does.
+
+```bash
+export NCU=/path/to/nsight-compute/ncu        # if ncu is not on PATH
+tools/xnnprof --model fcsnn --train 0 --weights weights --device cuda --ncu --out out-ncu
+tools/ncu_merge out-ncu/fcsnn/xnn-trace.json out-ncu/fcsnn/ncu.ncu-rep   # manual re-merge
+```
+
+Only kernels inside `layer@tN` NVTX ranges are profiled (`--nvtx-include "regex:.*@t[0-9]+/"`), so warm-up, `--perf` repetitions and `xnn::instrument` are left out. A kernel belongs to every `layer@tN` range on its NVTX stack (launch-in-range, as with Nsight Systems). Each region gets `args.ncu`:
+
+| Field | Meaning |
+|---|---|
+| `kernels`, `kernel_us` | Kernel count and summed `gpu__time_duration` |
+| `dram_read_bytes`, `dram_write_bytes` | DRAM traffic |
+| `flops_fp32` | Executed FP32 operations, `2·FFMA + FADD + FMUL` |
+| `flops_per_dram_byte` | Arithmetic intensity |
+| `sm_throughput_pct`, `mem_throughput_pct` | Share of peak, duration-weighted over the region's kernels |
+| `achieved_occupancy_pct`, `theoretical_occupancy_pct` | Duration-weighted |
+| `top_kernels` | Longest kernels with grid size, block size and registers per thread |
+
+Caveats, also recorded in the `nsight_compute` source:
+
+- ncu serializes kernels and replays each one with caches flushed and clocks locked to base (`cache_control: all`, `clock_control: base`). `kernel_us` is therefore not a normal-run duration and is not comparable with Nsight Systems `kernel_us`. On an RTX 2060 SUPER, `fcsnn` region times were 0.99-1.42x the Nsight Systems values.
+- `flops_fp32` counts what the kernel executed, including tile padding. In `fcsnn`, `fc1` executes 1.05x and `fc2` (10 outputs) 3.3x the model's `2·MAC`.
+- A metric the GPU did not report is listed in `metrics_missing` and the source becomes `partial`; it is never stored as 0.
+- Needs GPU performance counter access: run as root, or load the NVIDIA driver with `NVreg_RestrictProfilingToAdminUsers=0`. Otherwise ncu fails with `ERR_NVGPUCTRPERM`.
 
 ## Profiling Overhead
 

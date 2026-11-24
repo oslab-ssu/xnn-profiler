@@ -27,6 +27,7 @@ class Region:
     # start, so no clock alignment is needed. {name, depth, off_us, dur_us}
     op_tree: list[dict[str, Any]] = field(default_factory=list)
     gpu: dict[str, Any] = field(default_factory=dict)     # projected from Nsight Systems
+    ncu: dict[str, Any] = field(default_factory=dict)     # counters from Nsight Compute
 
 
 @dataclass

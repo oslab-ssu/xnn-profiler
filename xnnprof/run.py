@@ -8,6 +8,7 @@ import time
 from typing import Any, Optional
 
 from .collect.base import Collector
+from .collect.ncu import NcuCollector
 from .collect.nsys import NsysCollector
 from .collect.perf import PerfCollector
 from .collect.stubs import ALL as STUB_COLLECTORS
@@ -119,6 +120,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
         trace.sources.append(NsysCollector().collect(trace))
     if PerfCollector.name not in named:
         trace.sources.append(perf.collect(trace))
+    if NcuCollector.name not in named:
+        trace.sources.append(NcuCollector().collect(trace))
     for cls in STUB_COLLECTORS:
         if cls.name not in named:
             trace.sources.append(cls().collect(trace))

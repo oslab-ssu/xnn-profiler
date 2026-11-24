@@ -8,6 +8,7 @@
 On GPU, NVTX labels are enabled automatically. To include Nsight Systems in one step:
 
   tools/xnnprof --model fcsnn --device cuda --nsys
+  tools/xnnprof --model fcsnn --device cuda --ncu      # per-kernel counters
 
 Measurement and merge can also be two commands. The report is written after the process
 exits, so the measuring process itself cannot read it; `--nsys` therefore relaunches
@@ -40,11 +41,11 @@ from xnnprof.report import summary                  # noqa: E402
 from xnnprof.run import profile                      # noqa: E402
 
 
-REENTRY = "XNN_UNDER_NSYS"      # tells the child it is already running under nsys
+REENTRY = "XNN_WRAPPED"      # tells the child it is already running under nsys or ncu
 
 
-def run_under_nsys(args, argv: list[str]) -> int:
-    """Relaunch this script under `nsys profile`, then merge the report when it ends.
+def run_wrapped(args, argv: list[str], tool: str) -> int:
+    """Relaunch this script under `nsys profile` or `ncu`, then merge the report.
 
     The report is written after the wrapped process exits. The measuring process cannot
     read its own report in principle, so an outer layer merges after the child exits.
@@ -52,39 +53,53 @@ def run_under_nsys(args, argv: list[str]) -> int:
     """
     import subprocess
     import time
-    from xnnprof.collect.nsys import NsysCollector, nsys_bin
     from xnnprof.emit import trace_json
     from xnnprof.emit.full_trace import extract
     from xnnprof.schema import Trace
 
     if args.model == "all":
-        print("--nsys works with a single model only. NVTX range names overlap between "
+        print(f"--{tool} works with a single model only. NVTX range names overlap between "
               "models (lif1@t0 etc.), so kernels could not be told apart by model.",
               file=sys.stderr)
         return 1
-    nsys = nsys_bin()
-    if not nsys:
-        print("nsys not found. Put it on PATH or set the NSYS environment variable.\n"
-              "  The same-named binary shipped with Nsight Compute cannot produce "
-              "reports; use the Nsight Systems path.", file=sys.stderr)
-        return 1
-
     out_dir = os.path.join(args.out, args.model)
     os.makedirs(out_dir, exist_ok=True)
-    report = os.path.join(out_dir, "nsys")
+    report = os.path.join(out_dir, tool)
+    child = [a for a in argv if a != f"--{tool}"]
+    if tool == "nsys":
+        from xnnprof.collect.nsys import NsysCollector, nsys_bin
+        exe = nsys_bin()
+        if not exe:
+            print("nsys not found. Put it on PATH or set the NSYS environment variable.\n"
+                  "  The same-named binary shipped with Nsight Compute cannot produce "
+                  "reports; use the Nsight Systems path.", file=sys.stderr)
+            return 1
+        prefix = [exe, "profile", "-t", "cuda,nvtx", "-o", report,
+                  "--force-overwrite", "true"]
+        rep = report + ".nsys-rep"
+        make = lambda: NsysCollector(rep)                   # noqa: E731
+    else:
+        from xnnprof.collect.ncu import NcuCollector, ncu_bin, profile_cmd
+        exe = ncu_bin()
+        if not exe:
+            print("ncu not found. Put it on PATH or set the NCU environment variable.",
+                  file=sys.stderr)
+            return 1
+        prefix = profile_cmd(exe, report)
+        rep = report + ".ncu-rep"
+        make = lambda: NcuCollector(rep)                    # noqa: E731
+        if "--no-torch-profiler" not in child:
+            # Both use CUPTI; the PyTorch Profiler cannot trace CUDA under ncu.
+            child.append("--no-torch-profiler")
     if not os.path.abspath(report).isascii():
-        print(f"warning: the path contains non-ASCII characters; nsys may fail.\n"
+        print(f"warning: the path contains non-ASCII characters; {tool} may fail.\n"
               f"  {os.path.abspath(report)}\n"
               f"  On Windows, map an ASCII drive with subst and run from there.",
               file=sys.stderr)
 
-    child = [a for a in argv if a != "--nsys"]
-    cmd = [nsys, "profile", "-t", "cuda,nvtx", "-o", report,
-           "--force-overwrite", "true",
-           sys.executable, os.path.abspath(__file__)] + child
+    cmd = prefix + [sys.executable, os.path.abspath(__file__)] + child
     trace_path = os.path.join(out_dir, "xnn-trace.json")
-    rep = report + ".nsys-rep"
-    print(f"[1/2] nsys profile -> {rep}")
+    print(f"[1/2] {tool} -> {rep}")
     started = time.time()
     rc = subprocess.run(cmd, env=dict(os.environ, **{REENTRY: "1"})).returncode
 
@@ -108,15 +123,14 @@ def run_under_nsys(args, argv: list[str]) -> int:
     print(f"\n[2/2] merge {rep}")
     trace = Trace.load(trace_path)
     full = extract(trace_path)          # the full-run track is not in the xnn key
-    src = NsysCollector(rep).collect(trace)
+    src = make().collect(trace)
     trace.sources = [s for s in trace.sources if s.collector != src.collector]
     trace.sources.append(src)
     trace_json.write(trace, trace_path, full=full)
     d = src.detail or {}
-    print(f"  {src.status}  merged {d.get('nvtx_ranges')} NVTX ranges into "
+    print(f"  {src.status}  {src.reason}  merged {d.get('nvtx_ranges')} NVTX ranges into "
           f"{d.get('matched_regions')} regions  "
-          f"kernels in ranges {d.get('kernel_us_in_ranges', 0):,.1f}us "
-          f"({d.get('in_range_fraction', 0):.1%})")
+          f"kernels in ranges {d.get('kernel_us_in_ranges', 0):,.1f}us")
     print(f"\n-> {trace_path}")
     return 0 if src.status in ("captured", "partial") else 1
 
@@ -192,6 +206,11 @@ def main() -> int:
     ap.add_argument("--nsys", action="store_true",
                     help="wrap the measurement in nsys profile and merge the report into "
                          "regions afterwards. One command. Single model only")
+    ap.add_argument("--ncu", action="store_true",
+                    help="wrap the measurement in Nsight Compute and merge per-kernel "
+                         "counters into regions afterwards. Kernels are replayed with "
+                         "clocks locked, so durations are not normal-run timings. "
+                         "Single model only; implies --no-torch-profiler")
     ap.add_argument("--with-stack", action="store_true",
                     help="record Python call stacks too. The full-run track grows from "
                          "6 to 20+ levels and the file grows 3-4x. "
@@ -205,8 +224,13 @@ def main() -> int:
                          "needs kernel.perf_event_paranoid<=2")
     args = ap.parse_args()
 
-    if args.nsys and not os.environ.get(REENTRY):
-        return run_under_nsys(args, sys.argv[1:])
+    if args.nsys and args.ncu:
+        print("--nsys and --ncu cannot be combined: ncu replays and serializes kernels, "
+              "which would distort the nsys timeline", file=sys.stderr)
+        return 1
+    for tool in ("nsys", "ncu"):
+        if getattr(args, tool) and not os.environ.get(REENTRY):
+            return run_wrapped(args, sys.argv[1:], tool)
 
     names = sorted(REGISTRY) if args.model == "all" else [args.model]
     dev = args.device

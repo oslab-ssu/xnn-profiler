@@ -150,6 +150,9 @@ def test_sources_declare_limits():
     assert PerfCollector.attribution == "process-global", "perf cannot attribute to layers"
     s = PerfCollector().collect(Trace(run_id="r", model_id="m"))
     assert s.status == "unavailable" and s.reason, "recorded in sources when no window was opened"
+    from xnnprof.collect.ncu import NcuCollector
+    s = NcuCollector().collect(Trace(run_id="r", model_id="m"))
+    assert s.status == "unavailable" and s.reason and s.attribution == "region"
     print("  collector attribution limits declared OK")
 
 
@@ -313,12 +316,53 @@ def test_perf_csv_parse():
     print("  perf stat CSV parsing OK")
 
 
+def test_ncu_aggregate():
+    """Kernels group by every `layer@tN` on their NVTX stack; ratios are duration-weighted."""
+    from xnnprof.collect.ncu import aggregate
+
+    def row(kernel, ranges, ns, ffma=0, rd=0, sm=None, **extra):
+        m = {"gpu__time_duration.sum": ns,
+             "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": ffma,
+             "smsp__sass_thread_inst_executed_op_fadd_pred_on.sum": 0,
+             "smsp__sass_thread_inst_executed_op_fmul_pred_on.sum": 0,
+             "dram__bytes_read.sum": rd, "dram__bytes_write.sum": 0,
+             "sm__throughput.avg.pct_of_peak_sustained_elapsed": sm,
+             "launch__grid_size": 8, "launch__block_size": 128,
+             "launch__registers_per_thread": 32, **extra}
+        return {"kernel": kernel, "ranges": ranges, "metrics": m}
+
+    t = sample()
+    rows = [row("sgemm", ["fc2@t0"], 3000, ffma=100, rd=50, sm=40.0),
+            row("bias", ["fc2@t0"], 1000, rd=50, sm=80.0),
+            row("stray", ["xnn::instrument"], 500),
+            row("ghost", ["nope@t7"], 200)]
+    d = aggregate(t, rows)
+    g = t.region("fc2", 0).ncu
+    assert g["kernels"] == 2 and g["kernel_us"] == 4.0, g
+    assert g["flops_fp32"] == 200 and g["dram_read_bytes"] == 100
+    assert g["flops_per_dram_byte"] == 2.0
+    assert g["sm_throughput_pct"] == 50.0, "duration-weighted: (40*3+80*1)/4"
+    assert g["top_kernels"][0]["name"] == "sgemm" and g["top_kernels"][0]["grid_size"] == 8
+    assert d["kernels_profiled"] == 4 and d["kernels_outside_ranges"] == 1
+    assert d["matched_regions"] == 1 and d["unmatched_ranges"] == ["nope@t7"]
+    # a metric that was not collected stays None and is reported, never read as 0
+    t2 = sample()
+    d2 = aggregate(t2, [row("k", ["fc2@t1"], 10, sm=None)])
+    assert "sm_throughput_pct" not in t2.region("fc2", 1).ncu
+    assert "sm__throughput.avg.pct_of_peak_sustained_elapsed" in d2["metrics_missing"]
+    from xnnprof.collect.ncu import NcuCollector
+    src = NcuCollector("/nonexistent.ncu-rep").collect(t)
+    assert src.status == "unavailable" and not t.region("fc2", 0).ncu, "stale counters cleared"
+    print("  ncu region aggregation OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
                test_trace_event_format, test_roundtrip, test_sources_declare_limits,
                test_steady_state, test_membrane_histogram, test_op_tree_nesting,
                test_nsys_projection, test_nsys_stale_sqlite,
                test_op_tree_cap_keeps_first_level,
-               test_summary_gpu_key_distinct, test_perf_csv_parse):
+               test_summary_gpu_key_distinct, test_perf_csv_parse,
+               test_ncu_aggregate):
         fn()
     print("\nall contract tests passed")

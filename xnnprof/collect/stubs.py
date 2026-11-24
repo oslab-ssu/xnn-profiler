@@ -6,18 +6,7 @@ a tool limitation can be told apart from a genuinely missing measurement.
 
 from __future__ import annotations
 
-import shutil
-
-from .base import REGION, STATIC_NAME, Unimplemented
-
-
-class NcuCollector(Unimplemented):
-    name = "nsight_compute"
-    attribution = REGION
-    capabilities = ("kernel_counters", "occupancy", "memory_bandwidth")
-
-    def available(self):
-        return (True, "ok") if shutil.which("ncu") else (False, "ncu not installed")
+from .base import STATIC_NAME, Unimplemented
 
 
 class MlirStaticCollector(Unimplemented):
@@ -29,4 +18,4 @@ class MlirStaticCollector(Unimplemented):
         return False, "no compiler output path given (.mlir / .ll)"
 
 
-ALL = (NcuCollector, MlirStaticCollector)
+ALL = (MlirStaticCollector,)
