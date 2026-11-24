@@ -223,7 +223,7 @@ tools/xnnprof --model fcsnn --train 0 --weights weights --device cpu --perf 50 -
 
 perf counts per process, so the values are **process-wide** and are not attributed to layers or regions (`attribution: process-global`). They are recorded in the `perf` entry of `sources` (top-level `xnn` key), both as totals and per forward, together with IPC and miss rates.
 
-Requirements: Linux, `perf` on `PATH`, and `kernel.perf_event_paranoid` of 2 or lower (or root). Without `--perf`, or when these are not met, the `perf` source is recorded as `unavailable` with the reason.
+Requirements: Linux, `perf` on `PATH`, and `kernel.perf_event_paranoid` of 2 or lower (or root). Without `--perf`, or when these are not met, the `perf` source is recorded as `unavailable` with the reason. At 2 (user-only counting), kernel-side events such as `context-switches` always read 0, so they are dropped and listed under `excluded_events`.
 
 ## Profiling Overhead
 
