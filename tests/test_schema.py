@@ -158,19 +158,33 @@ def test_sources_declare_limits():
 
 def test_steady_state():
     from xnnprof.steady import steady_state
-    # same pattern from the start: reached at step 1
+    # every neuron dead or saturated: the per-neuron expectation is 0 change too, so the
+    # verdict is undefined; the homogeneous baseline still calls it reached at step 1
     ss = steady_state([[0, 1, 0, 1]] * 4)
-    assert ss["reached_step"] == 1 and ss["c_t"] == [0.0, 0.0, 0.0], ss
-    # changes only at step 0->1 and fixed after: reached at step 2
+    assert "reached_step" not in ss and ss["reason"], ss
+    assert ss["reached_step_homogeneous"] == 1 and ss["c_t_homogeneous"] == [0.0] * 3
+    # changes only at step 0->1 and fixed after: reached at step 2 under both
     ss = steady_state([[1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 0, 1], [0, 1, 0, 1]])
-    assert ss["reached_step"] == 2, ss
+    assert ss["reached_step"] == 2 and ss["reached_step_homogeneous"] == 2, ss
+    assert ss["baseline_value"] == 0.375 and ss["baseline_homogeneous"] == 0.5
     # fully flips every step: alternating, so c_t > 1, not reached
     flip = [[1, 1, 0, 0], [0, 0, 1, 1], [1, 1, 0, 0], [0, 0, 1, 1]]
     ss = steady_state(flip)
     assert ss["reached_step"] is None and ss["c_t_min"] > 1.0, ss
-    # firing rate 0: denominator is 0, so undefined. Never store 0
+    # [T, batch, neurons]: half the neurons fixed, half flip at random -> the
+    # homogeneous baseline dilutes the change, the per-neuron one does not
+    import numpy as np
+    rng = np.random.default_rng(0)
+    arr = np.zeros((10, 8, 20), dtype=np.uint8)
+    arr[:, :, :5] = 1
+    arr[:, :, 10:] = rng.integers(0, 2, (10, 8, 10))
+    ss = steady_state(arr)
+    assert ss["baseline_value"] < ss["baseline_homogeneous"]
+    assert ss["c_t_min"] > ss["c_t_min_homogeneous"]
+    # firing rate 0: denominator is 0, so undefined under both. Never store 0
     ss = steady_state([[0, 0], [0, 0], [0, 0]])
     assert "reached_step" not in ss and ss["reason"], ss
+    assert "reached_step_homogeneous" not in ss and ss["reason_homogeneous"]
     print("  steady-state step OK")
 
 

@@ -50,6 +50,13 @@ def output_latency(trace: Trace):
     }
 
 
+SUMMARY_KEYS = ("mean_rate", "threshold", "baseline", "baseline_value",
+                "reached_step", "c_t_min", "c_t_max", "reason",
+                "baseline_homogeneous", "reached_step_homogeneous",
+                "c_t_min_homogeneous", "c_t_max_homogeneous", "reason_homogeneous",
+                "baseline_sensitive")
+
+
 def steady_state(trace: Trace) -> dict:
     """Per-layer steady-state step. Formula in `steady.py`."""
     out = {}
@@ -57,9 +64,7 @@ def steady_state(trace: Trace) -> dict:
         ss = sp.steady_state or {}
         if not ss:
             continue
-        row = {k: ss[k] for k in ("reached_step", "c_t_min", "c_t_max",
-                                  "mean_rate", "threshold", "reason")
-               if k in ss}
+        row = {k: ss[k] for k in SUMMARY_KEYS if k in ss}
         out[sp.layer_id] = row
     return out
 

@@ -52,13 +52,14 @@ def _snn_args(sp, timestep) -> dict[str, Any]:
         out["synops"] = f"undefined ({sp.fanout_from})"
     ss = sp.steady_state or {}
     if ss:
-        out["steady_state_step"] = ss.get("reached_step")
-        if ss.get("reached_step") is None and ss.get("reason"):
-            out["steady_state"] = f"not reached ({ss['reason']})"
-        c = ss.get("c_t") or []
-        # c_t[i] belongs to step i+1; step 0 has no previous step.
-        if timestep is not None and 1 <= timestep <= len(c):
-            out["pattern_change_c_t"] = c[timestep - 1]
+        for sfx in ("", "_homogeneous"):
+            out["steady_state_step" + sfx] = ss.get("reached_step" + sfx)
+            if ss.get("reached_step" + sfx) is None and ss.get("reason" + sfx):
+                out["steady_state" + sfx] = f"not reached ({ss['reason' + sfx]})"
+            c = ss.get("c_t" + sfx) or []
+            # c_t[i] belongs to step i+1; step 0 has no previous step.
+            if timestep is not None and 1 <= timestep <= len(c):
+                out["pattern_change_c_t" + sfx] = c[timestep - 1]
     return out
 
 

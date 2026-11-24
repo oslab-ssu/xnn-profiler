@@ -170,6 +170,18 @@ The histogram is computed from the membrane potentials returned by the neuron mo
 
 The actual firing rate is calculated separately from the spike array.
 
+### Steady-State Step
+
+For each spiking layer, `spikes[].steady_state` records when the spike pattern stops changing:
+
+```
+d_t = mean(s_t != s_{t-1})                 fraction of bits that changed
+c_t = d_t / mean_i 2·p_i·(1-p_i)            relative to independent per-neuron draws
+reached_step = first t with c_u <= 0.1 for every u >= t
+```
+
+`p_i` is neuron `i`'s firing rate over all steps and samples. The per-neuron baseline is the verdict (`reached_step`, `c_t`). The homogeneous baseline `2·r̄·(1-r̄)`, used in reports before 2026-11-24, is kept as `reached_step_homogeneous` / `c_t_homogeneous` for comparison; `baseline_sensitive` is true when the two verdicts differ. The homogeneous baseline is never smaller, so dead and saturated neurons inflate it. In `repeated_dnn_snn/lif1` (42% dead, 14% saturated) it gives `reached_step_homogeneous = 1` from fixed weights alone, while the per-neuron verdict is not reached (`c_t` 0.18-0.25).
+
 ### Understanding `xnn-trace.json`
 
 The trace contains the following information:
@@ -178,7 +190,7 @@ The trace contains the following information:
 |---|---|
 | Slice name | String representation of the unified profiling key, e.g., `fc1@t3` |
 | `args` | Timestep, MAC count, `ops_self_time_us` (operator execution time attributed to the region), and `host_sync_us` |
-| `args.snn` | SNN-specific metrics for spiking layers, including dead/saturated ratios, firing rate, first-spike latency, SynOps, steady-state convergence timestep, and the corresponding `c_t` |
+| `args.snn` | SNN-specific metrics for spiking layers, including dead/saturated ratios, firing rate, first-spike latency, SynOps, steady-state convergence timestep, and the corresponding `c_t` (see Steady-State Step below) |
 | `args.membrane` | Membrane potential metrics for spiking layers, including threshold (θ) and the proportion of values near the threshold |
 | `args.gpu` | GPU kernel execution time, kernel count, and top kernels for each region. Available only after merging with `tools/nsys_merge` |
 | Nested slices | Operator call hierarchy within each profiling region. The unified profiling key serves as the Flame Graph root |

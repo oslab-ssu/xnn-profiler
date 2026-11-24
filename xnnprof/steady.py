@@ -3,18 +3,22 @@
 Mean firing rate cannot show this. Even at a constant rate, the set of firing neurons
 can change every step, so the patterns themselves must be compared.
 
-    d_t = mean( s_t != s_{t-1} ),        t = 1 .. T-1
-    c_t = d_t / (2·r̄·(1-r̄))              normalized by the expectation for independent patterns
+    d_t = mean( s_t != s_{t-1} ),            t = 1 .. T-1
+    c_t = d_t / mean_i 2·p_i·(1-p_i)          normalized by the expectation for independent patterns
     reached step = min { t : c_u <= θ for all u >= t },   θ = 0.1
 
-Read `c_t` in three bands: near 0 the pattern is fixed, near 1 it is no different from
-drawing independently each step, and above 1 consecutive steps alternate.
+p_i is neuron i's firing probability over all steps and samples. Read `c_t` in three
+bands: near 0 the pattern is fixed, near 1 it is no different from each neuron drawing
+independently at its own rate every step, and above 1 consecutive steps alternate.
 
-The denominator `2·r̄·(1-r̄)` assumes a homogeneous Bernoulli model where every neuron
-fires with the same probability r̄. When per-neuron probabilities differ, this exceeds
-the true independence baseline: x(1-x) is concave, so mean(2·p_i·(1-p_i)) <= 2·r̄·(1-r̄).
-The gap is large for layers with many dead or saturated neurons, and the verdict can
-depend on the baseline model. The per-neuron-normalized value is therefore reported too.
+The per-neuron baseline is the verdict (decided 2026-11-24). The homogeneous baseline
+`2·r̄·(1-r̄)` is still reported as `*_homogeneous` for comparison with reports made before
+then. It assumes every neuron fires with the same probability; since x(1-x) is concave
+it is never smaller than the per-neuron baseline, so dead and saturated neurons inflate
+it and make a fixed weight structure look like temporal convergence.
+
+p_i pools samples, so a neuron that is always on for one input and always off for
+another still counts as p=0.5. The per-neuron baseline therefore remains an upper bound.
 """
 
 from __future__ import annotations
@@ -27,8 +31,8 @@ DEFAULT_THRESHOLD = 0.1
 def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
     """Compute from a `[T, batch, neurons...]` binary array.
 
-    If r̄ is 0 or 1 the denominator is 0 and the value is undefined (a layer that never
-    fires or always fires). In that case `reached_step` is omitted and a reason is
+    If the denominator is 0 the value is undefined (homogeneous: r̄ is 0 or 1; per-neuron:
+    every neuron is dead or saturated). `reached_step` is then omitted and a reason is
     recorded. A value of 0 and an undefined value are different.
     """
     import numpy as np
@@ -50,16 +54,18 @@ def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
 
     rbar = float(flat.mean())
     out["mean_rate"] = round(rbar, 6)
-    denom = 2.0 * rbar * (1.0 - rbar)
-    if denom <= 0.0:
-        out["reason"] = ("firing rate is 0 or 1, so the denominator is 0; "
-                         "pattern change cannot be compared to the independence expectation")
-        return out
+    # neurons are the last axes; time and (if present) batch are pooled into p_i
+    p = (a.reshape(T, a.shape[1], -1).mean(axis=(0, 1)) if a.ndim >= 3
+         else flat.mean(axis=0))
+    den = float((2.0 * p * (1.0 - p)).mean())
+    den_h = 2.0 * rbar * (1.0 - rbar)
+    out["baseline"] = "per-neuron Bernoulli mean_i 2·p_i·(1-p_i)"
+    out["baseline_value"] = round(den, 6)
+    out["baseline_homogeneous"] = round(den_h, 6)
 
     d = (flat[1:] != flat[:-1]).mean(axis=1)
     out["d_t"] = [round(float(v), 6) for v in d]
     out["c_t_from_step"] = 1
-    out["baseline"] = "homogeneous Bernoulli 2·r̄·(1-r̄)"
 
     def judge(c) -> Optional[int]:
         """Scan backwards for the last value above θ; the step after it is the reached step."""
@@ -70,26 +76,25 @@ def steady_state(array, threshold: float = DEFAULT_THRESHOLD) -> dict[str, Any]:
                 break
         return step if step <= T - 1 else None
 
-    c = d / denom
-    out["c_t"] = [round(float(v), 6) for v in c]
-    out["c_t_min"] = round(float(c.min()), 6)
-    out["c_t_max"] = round(float(c.max()), 6)
-    out["reached_step"] = judge(c)
-    if out["reached_step"] is None:
-        out["reason"] = f"c_t > {threshold} through the last step; not reached"
+    def fill(denom: float, suffix: str) -> None:
+        if denom <= 0.0:
+            out["reason" + suffix] = (
+                "every neuron fires never or always, so the denominator is 0; "
+                "pattern change cannot be compared to the independence expectation"
+                if not suffix else "firing rate is 0 or 1, so the denominator is 0")
+            return
+        c = d / denom
+        out["c_t" + suffix] = [round(float(v), 6) for v in c]
+        out["c_t_min" + suffix] = round(float(c.min()), 6)
+        out["c_t_max" + suffix] = round(float(c.max()), 6)
+        out["reached_step" + suffix] = judge(c)
+        if out["reached_step" + suffix] is None:
+            out["reason" + suffix] = f"c_t > {threshold} through the last step; not reached"
 
-    # Per-neuron denominator, to see whether the verdict depends on the baseline model.
-    if a.ndim >= 3:
-        p = a.mean(axis=(0, 1))
-        den_n = float((2.0 * p * (1.0 - p)).mean())
-        out["baseline_per_neuron"] = round(den_n, 6)
-        if den_n > 0.0:
-            cn = d / den_n
-            out["c_t_per_neuron_min"] = round(float(cn.min()), 6)
-            out["c_t_per_neuron_max"] = round(float(cn.max()), 6)
-            out["reached_step_per_neuron"] = judge(cn)
-            out["baseline_sensitive"] = (
-                out["reached_step_per_neuron"] != out["reached_step"])
+    fill(den, "")
+    fill(den_h, "_homogeneous")
+    if "reached_step" in out and "reached_step_homogeneous" in out:
+        out["baseline_sensitive"] = out["reached_step"] != out["reached_step_homogeneous"]
     return out
 
 

@@ -65,11 +65,16 @@ def summary(trace: Trace) -> str:
         if m.get("synops") is not None:
             out.append(f"SynOps              {m['synops']:,}")
         for lid, ss in (m.get("steady_state") or {}).items():
-            step = ss.get("reached_step")
-            rng = (f"c_t {ss['c_t_min']:.3f}~{ss['c_t_max']:.3f}"
-                   if "c_t_min" in ss else ss.get("reason", ""))
-            got = f"{step} / T={trace.timesteps}" if step is not None else "not reached"
-            out.append(f"steady-state step   {got:14s} {lid:10s} {rng}")
+            def verdict(sfx: str) -> tuple[str, str]:
+                step = ss.get("reached_step" + sfx)
+                rng = (f"c_t {ss['c_t_min' + sfx]:.3f}~{ss['c_t_max' + sfx]:.3f}"
+                       if "c_t_min" + sfx in ss else ss.get("reason" + sfx, ""))
+                return (f"{step} / T={trace.timesteps}" if step is not None
+                        else "not reached"), rng
+            got, rng = verdict("")
+            got_h, rng_h = verdict("_homogeneous")
+            out.append(f"steady-state step   {got:14s} {lid:10s} {rng}  "
+                       f"[homogeneous: {got_h}, {rng_h}]")
         for lid, mb in (m.get("membrane_distribution") or {}).items():
             near = mb.get("near_threshold_fraction_mean")
             if near is None:
