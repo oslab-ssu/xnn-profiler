@@ -302,6 +302,14 @@ def test_perf_csv_parse():
     assert d["ipc"] == 2.0 and d["cache_miss_rate"] == 0.25
     assert d["per_forward"]["cycles"] == 4e6
     assert d["not_counted"] == ["branch-misses"]
+    assert d["privilege"] == "user+kernel"
+    # Real perf 6.11 output at perf_event_paranoid=2 (2026-11-24): events carry ":u".
+    real = ("540.56,msec,task-clock:u,540558841,100.00,0.692,CPUs utilized\n"
+            "82668138,,cycles:u,540558841,100.00,0.153,GHz\n"
+            "73770367,,instructions:u,540558841,100.00,0.89,insn per cycle\n")
+    d = derive(parse_csv(real), reps=1)
+    assert d["per_forward"]["cycles"] == 82668138 and d["ipc"] == round(73770367 / 82668138, 4)
+    assert d["privilege"] == "user-only"
     print("  perf stat CSV parsing OK")
 
 

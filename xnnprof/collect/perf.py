@@ -24,6 +24,15 @@ EVENTS = ("task-clock", "cycles", "instructions", "cache-references",
           "cache-misses", "branches", "branch-misses", "page-faults",
           "context-switches")
 
+# Kernel-side software events read 0 under user-only counting (paranoid >= 2); a real
+# 0 and "not visible" must not look the same, so they are dropped and listed instead.
+KERNEL_SIDE = ("context-switches", "cpu-migrations")
+
+
+def user_only() -> bool:
+    p = paranoid()
+    return p is not None and p >= 2 and os.geteuid() != 0
+
 
 def paranoid() -> Optional[int]:
     try:
@@ -80,6 +89,8 @@ def derive(counts: dict[str, dict[str, Any]], reps: int) -> dict[str, Any]:
            if c.get("enabled_pct") is not None]
     d["min_enabled_pct"] = min(mux) if mux else None
     d["not_counted"] = sorted(k for k, c in counts.items() if c["value"] is None)
+    d["privilege"] = ("user-only" if counts and all(k.endswith(":u") for k in counts)
+                      else "user+kernel")
     return d
 
 
@@ -90,6 +101,7 @@ class PerfCollector(Collector):
 
     def __init__(self, events: tuple[str, ...] = EVENTS):
         self.events = events
+        self.excluded: tuple[str, ...] = ()
         self._counts: Optional[dict] = None
         self._reps = 0
         self._wall_us = 0.0
@@ -114,6 +126,9 @@ class PerfCollector(Collector):
             self._err = why
             yield
             return
+        if user_only():
+            self.excluded = tuple(e for e in self.events if e in KERNEL_SIDE)
+            self.events = tuple(e for e in self.events if e not in KERNEL_SIDE)
         tmp = tempfile.mkdtemp(prefix="xnnperf-")
         ctl, ack, out = (os.path.join(tmp, n) for n in ("ctl", "ack", "out.csv"))
         os.mkfifo(ctl), os.mkfifo(ack)
@@ -169,4 +184,6 @@ class PerfCollector(Collector):
             status, "process-wide counters; not attributable to layers or regions",
             window="uninstrumented-forward", reps=self._reps,
             wall_us_per_forward=round(self._wall_us / max(self._reps, 1), 3),
-            events=list(self.events), counts=self._counts, **d)
+            events=list(self.events), counts=self._counts,
+            excluded_events={e: "kernel-side event; invisible to user-only counting"
+                             for e in self.excluded}, **d)
