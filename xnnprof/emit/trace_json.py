@@ -134,6 +134,8 @@ def build(trace: Trace, pid: int = 1,
             args["gpu"] = r.gpu
         if r.ncu:
             args["ncu"] = r.ncu
+        if r.ir:
+            args["ir"] = r.ir
         if r.ops:
             args["ops_self_time_us"] = r.ops
             sync = sum(v for k, v in r.ops.items() if k in SYNC_OPS)

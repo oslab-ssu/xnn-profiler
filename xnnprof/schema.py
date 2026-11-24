@@ -28,6 +28,7 @@ class Region:
     op_tree: list[dict[str, Any]] = field(default_factory=list)
     gpu: dict[str, Any] = field(default_factory=dict)     # projected from Nsight Systems
     ncu: dict[str, Any] = field(default_factory=dict)     # counters from Nsight Compute
+    ir: dict[str, Any] = field(default_factory=dict)      # static op counts from MLIR
 
 
 @dataclass

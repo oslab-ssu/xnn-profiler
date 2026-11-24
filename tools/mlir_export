@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""mlir_export: compile a model to MLIR at each lowering level, for the mlir_static collector.
+
+Runs in a separate environment with torch-mlir (it needs a newer torch than the measuring
+environment). The lowering follows oslab-ssu/mlir-profiler:
+
+  torch.export -> linalg-on-tensors -> one-shot-bufferize -> LLVM dialect [-> LLVM IR]
+
+Every op carries a NameLoc with the unified key `layer@tN`, chosen by the same rule as the
+hooks (`targets`, `layer_id_of`) and numbered by torch.export's per-module call index, so
+IR ops, NVTX ranges and regions share one key. CSE keeps the first op's location, so a
+step the compiler deduplicated shows up as a key with no ops.
+
+The LLVM dialect module is executed with the MLIR ExecutionEngine on a fixed input and
+compared with PyTorch; provenance and that result are stored as `xnn.*` module attributes
+in each file, so the artifacts describe themselves.
+
+  ../mlir-venv/bin/python tools/mlir_export --model all --weights weights --out ../out-mlir
+
+LLVM IR (`.ll`) needs an `mlir-translate` from the same LLVM as torch-mlir; give it with
+--translate or the MLIR_TRANSLATE environment variable. Without it, `.ll` is skipped and
+recorded as such.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
+
+BUFFERIZE = ("builtin.module(empty-tensor-to-alloc-tensor,"
+             "one-shot-bufferize{bufferize-function-boundaries})")
+TO_LLVM = ("builtin.module(canonicalize,convert-linalg-to-loops,lower-affine,"
+           "convert-scf-to-cf,convert-math-to-llvm,convert-arith-to-llvm,"
+           "expand-strided-metadata,finalize-memref-to-llvm,convert-cf-to-llvm,"
+           "convert-func-to-llvm,reconcile-unrealized-casts)")
+LEVELS = ("linalg", "bufferized", "llvm_dialect")
+CALL = re.compile(r"@(\d+)$")
+
+
+def freeze_control_flow(model) -> list[str]:
+    """torch.export rejects Python `if` on tensor buffers (snntorch `reset_mechanism_val`).
+
+    Only the module instance is changed, never the model code: a 0-dim integer buffer used
+    as a mode flag becomes the equivalent Python int.
+    """
+    import torch
+    done = []
+    for name, mod in model.named_modules():
+        for b, t in list(mod._buffers.items()):
+            if (t is not None and t.dim() == 0 and not torch.is_floating_point(t)
+                    and b.endswith("_val")):
+                del mod._buffers[b]
+                setattr(mod, b, int(t.item()))
+                done.append(f"{name}.{b}")
+    return done
+
+
+def key_namer(model):
+    """Map an FX node to `layer@tN` using the hook targeting rule and the call index."""
+    from xnnprof.collect.torch_hooks import layer_id_of, targets
+    lids = {name: layer_id_of(name, m) for name, m in targets(model)}
+
+    def name_of(node):
+        stack = node.meta.get("nn_module_stack") or {}
+        for k, (path, _) in reversed(list(stack.items())):
+            if path in lids:
+                m = CALL.search(k)
+                return f"{lids[path]}@t{int(m.group(1)) if m else 0}"
+        return None
+    return name_of
+
+
+def export(model, x, name_of):
+    import torch
+    from torch_mlir import ir
+    from torch_mlir.dialects import torch as torch_d
+    from torch_mlir.extras.fx_importer import ContextCache, FxImporter
+    from torch_mlir.fx import export_and_import
+
+    from torch_mlir.extras.fx_decomp_util import get_decomposition_table
+    # Decompose here so the input order below is the one torch-mlir imports.
+    prog = torch.export.export(model, (x,), strict=False)
+    prog = prog.run_decompositions(get_decomposition_table())
+    ctx = ir.Context()
+    torch_d.register_dialect(ctx)
+    class KeyedCache(ContextCache):
+        __slots__ = ()
+
+        def get_node_location(self, node):
+            loc = super().get_node_location(node) or ir.Location.unknown(context=ctx)
+            key = name_of(node)
+            return ir.Location.name(key, childLoc=loc, context=ctx) if key else loc
+
+    imp = FxImporter(context=ctx)
+    imp._cc = KeyedCache(ctx, py_attr_tracker=imp._py_attr_tracker)
+    mod = export_and_import(prog, output_type="linalg-on-tensors", fx_importer=imp)
+    inputs = []
+    for spec in prog.graph_signature.input_specs:
+        kind = spec.kind.name
+        if kind == "USER_INPUT":
+            inputs.append(("user_input", None))
+        elif kind in ("BUFFER", "CONSTANT_TENSOR"):
+            src = prog.state_dict.get(spec.target)
+            if src is None:
+                src = prog.constants[spec.target]
+            inputs.append((spec.target, src.detach().cpu().numpy()))
+    return mod, inputs
+
+
+def asm(mod) -> str:
+    return mod.operation.get_asm(enable_debug_info=True)
+
+
+def run_llvm(mod, inputs, x, out_shape, runtime: str):
+    """Execute the LLVM dialect module and return its output as numpy."""
+    import numpy as np
+    from torch_mlir.execution_engine import ExecutionEngine
+    from torch_mlir.runtime import (get_ranked_memref_descriptor,
+                                    make_nd_memref_descriptor, ranked_memref_to_numpy)
+    # Lowered memref copies call memrefCopy from the MLIR C runner utils.
+    eng = ExecutionEngine(mod, opt_level=2, shared_libs=[runtime] if runtime else [])
+    arrays = [np.ascontiguousarray(x if a is None else a, dtype=np.float32)
+              for _, a in inputs]
+    keep = [get_ranked_memref_descriptor(a) for a in arrays]
+    res = make_nd_memref_descriptor(len(out_shape), ctypes.c_float)()
+    t = time.perf_counter()
+    eng.invoke("main", ctypes.pointer(ctypes.pointer(res)),
+               *[ctypes.pointer(ctypes.pointer(d)) for d in keep])
+    dt = time.perf_counter() - t
+    return ranked_memref_to_numpy([res]).copy(), dt
+
+
+def attrs(mod, values: dict) -> None:
+    from torch_mlir import ir
+    with mod.context:
+        for k, v in values.items():
+            mod.operation.attributes[f"xnn.{k}"] = ir.StringAttr.get(
+                v if isinstance(v, str) else json.dumps(v, sort_keys=True))
+
+
+def translate(exe: str, src: str, dst: str) -> str:
+    if not exe:
+        return "skipped: no mlir-translate given (--translate or MLIR_TRANSLATE)"
+    p = subprocess.run([exe, "--mlir-to-llvmir", src, "-o", dst],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        return f"failed: {p.stderr.strip().splitlines()[0][:200] if p.stderr else p.returncode}"
+    return "ok"
+
+
+def one(name: str, args) -> int:
+    import numpy as np
+    import torch
+    import torch_mlir
+    from torch_mlir import ir
+    from torch_mlir.passmanager import PassManager
+    from xnnprof.models import build
+
+    torch.manual_seed(0)
+    model, fkw = build(name, num_steps=args.steps)
+    wpath = os.path.join(args.weights, f"{name}.pt") if args.weights else ""
+    if wpath and os.path.exists(wpath):
+        model.load_state_dict(torch.load(wpath, map_location="cpu"))
+        weights = wpath
+    else:
+        weights = "random init (seed 0)"
+    model.eval()
+    frozen = freeze_control_flow(model)
+    torch.manual_seed(1)
+    x = torch.randn(args.batch, 1, 28, 28)
+    with torch.no_grad():
+        ref = model(x, **fkw).numpy()
+
+    out_dir = os.path.join(args.out, name)
+    os.makedirs(out_dir, exist_ok=True)
+    t0 = time.time()
+    with torch.no_grad():
+        mod, inputs = export(model, x, key_namer(model))
+    prov = {
+        "model": name, "timesteps": args.steps, "batch": args.batch, "weights": weights,
+        "torch": torch.__version__,
+        "torch_mlir": getattr(torch_mlir, "__version__", "") or _dist("torch-mlir"),
+        "frozen_buffers": frozen,
+        "inputs": [n for n, _ in inputs],
+        "location_key": "NameLoc layer@tN from torch_hooks.targets + nn_module_stack call index",
+        "export_s": round(time.time() - t0, 2),
+    }
+    files = {}
+    with mod.context:
+        func = next(op for op in mod.body.operations if op.operation.name == "func.func")
+        func.attributes["llvm.emit_c_interface"] = ir.UnitAttr.get()
+        for level, pipe in (("linalg", None), ("bufferized", BUFFERIZE),
+                            ("llvm_dialect", TO_LLVM)):
+            if pipe:
+                t = time.time()
+                PassManager.parse(pipe).run(mod.operation)
+                prov[f"{level}_s"] = round(time.time() - t, 2)
+            attrs(mod, {"level": level, "pipeline": pipe or "torch-mlir linalg-on-tensors",
+                        "provenance": prov})
+            files[level] = os.path.join(out_dir, f"{name}.{level}.mlir")
+            with open(files[level], "w") as f:
+                f.write(asm(mod))
+
+    if not args.runtime:
+        print(f"{name}: no MLIR C runner utils library; pass --runtime-lib", file=sys.stderr)
+        return 1
+    got, dt = run_llvm(mod, inputs, x.numpy(), ref.shape, args.runtime)
+    diff = float(np.abs(got - ref).max())
+    check = {"input": "torch.randn(batch,1,28,28) seed 1",
+             "max_abs_diff": diff, "equal": bool(np.array_equal(got, ref)),
+             "output_sum": float(got.sum()), "reference_sum": float(ref.sum()),
+             "run_s": round(dt, 4), "engine": "MLIR ExecutionEngine opt_level=2",
+             "runtime_lib": os.path.basename(args.runtime)}
+    attrs(mod, {"execution_check": check})
+    with open(files["llvm_dialect"], "w") as f:
+        f.write(asm(mod))
+
+    ll = os.path.join(out_dir, f"{name}.llvm_ir.ll")
+    status = translate(args.translate, files["llvm_dialect"], ll)
+    print(f"{name:18s} export {prov['export_s']}s  "
+          f"levels {', '.join(f'{k} {os.path.getsize(v) / 1e6:.1f}MB' for k, v in files.items())}")
+    print(f"{'':18s} execution check vs PyTorch: max |diff| {diff:.3g}, "
+          f"identical {check['equal']}, run {dt * 1e3:.1f} ms")
+    print(f"{'':18s} LLVM IR: {status}")
+    return 0 if diff == 0.0 or diff < 1e-4 else 1
+
+
+def _dist(pkg: str) -> str:
+    try:
+        from importlib.metadata import version
+        return version(pkg)
+    except Exception:
+        return ""
+
+
+def main() -> int:
+    from xnnprof.models import REGISTRY
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="all", choices=sorted(REGISTRY) + ["all"])
+    ap.add_argument("--steps", type=int, default=10)
+    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--weights", default="", help="weights directory (same files as tools/xnnprof)")
+    ap.add_argument("--out", default="out-mlir")
+    ap.add_argument("--translate", default=os.environ.get("MLIR_TRANSLATE", "")
+                    or shutil.which("mlir-translate") or "",
+                    help="mlir-translate from the same LLVM as torch-mlir, for .ll")
+    ap.add_argument("--runtime-lib", dest="runtime",
+                    default=os.environ.get("MLIR_RUNNER_UTILS", ""),
+                    help="libmlir_c_runner_utils.so for the execution check (memrefCopy)")
+    args = ap.parse_args()
+    names = sorted(REGISTRY) if args.model == "all" else [args.model]
+    return max(one(n, args) for n in names)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

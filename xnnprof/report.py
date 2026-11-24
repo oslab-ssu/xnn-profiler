@@ -108,6 +108,16 @@ def summary(trace: Trace) -> str:
                        f"instructions {per.get('instructions') or 0:,.0f}  "
                        f"IPC {d.get('ipc')}  cache-miss {d.get('cache_miss_rate')}  "
                        f"branch-miss {d.get('branch_miss_rate')}")
+        if s.collector == "mlir_static" and s.status in ("captured", "partial"):
+            d = s.detail
+            lv = " -> ".join(f"{l.level} {l.total_operations:,}" for l in trace.ir_levels)
+            gone = {k: v["count"] for k, v in (d.get("eliminated") or {}).items() if v["count"]}
+            chk = d.get("execution_check") or {}
+            out.append(f"      IR ops {lv}")
+            if gone:
+                out.append(f"      regions eliminated by the compiler {gone}")
+            if chk:
+                out.append(f"      compiled output vs PyTorch max |diff| {chk.get('max_abs_diff')}")
 
     for sp in trace.spikes:
         m = sp.metrics

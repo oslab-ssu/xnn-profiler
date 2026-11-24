@@ -141,11 +141,9 @@ def test_roundtrip():
 
 
 def test_sources_declare_limits():
-    from xnnprof.collect.stubs import ALL
-    for cls in ALL:
-        s = cls().collect(Trace(run_id="r", model_id="m"))
-        assert s.status == "unavailable" and s.reason
-        assert s.attribution in ("region", "process-global", "static-name")
+    from xnnprof.collect.mlir_static import MlirStaticCollector
+    s = MlirStaticCollector().collect(Trace(run_id="r", model_id="m"))
+    assert s.status == "unavailable" and s.reason and s.attribution == "static-name"
     from xnnprof.collect.perf import PerfCollector
     assert PerfCollector.attribution == "process-global", "perf cannot attribute to layers"
     s = PerfCollector().collect(Trace(run_id="r", model_id="m"))
@@ -370,6 +368,63 @@ def test_ncu_aggregate():
     print("  ncu region aggregation OK")
 
 
+MLIR_SAMPLE = """#loc1 = loc("/x/linear.py":134:0)
+#loc2 = loc("fc2@t0"(#loc1))
+#loc3 = loc("fc2@t1"(#loc1))
+#loc4 = loc("lif1@t0"(#loc1))
+#loc5 = loc(fused[#loc2, #loc4])
+module attributes {xnn.level = "bufferized", xnn.provenance = "{\\22timesteps\\22: 4, \\22batch\\22: 2}"} {
+  memref.global "private" constant @w : memref<10x8xf32> = dense<0.0> loc(#loc1)
+  func.func @main(%arg0: memref<2x8xf32> loc(#loc1)) -> memref<2x10xf32> attributes {llvm.emit_c_interface} {
+    %alloc = memref.alloc() {alignment = 64 : i64} : memref<2x10xf32> loc(#loc2)
+    linalg.matmul ins(%arg0, %arg0 : memref<2x8xf32>, memref<2x8xf32>) outs(%alloc : memref<2x10xf32>) loc(#loc2)
+    linalg.generic {indexing_maps = [], iterator_types = ["parallel"]} ins(%alloc : memref<2x10xf32>) outs(%alloc : memref<2x10xf32>) {
+    ^bb0(%in: f32 loc("fc2@t1"(#loc1)), %out: f32 loc("fc2@t1"(#loc1))):
+      %0 = arith.addf %in, %in : f32 loc(#loc3)
+      linalg.yield %0 : f32 loc(#loc3)
+    } loc(#loc3)
+    %c = arith.constant 0.0 : f32 loc(#loc5)
+    return %alloc : memref<2x10xf32> loc(#loc1)
+  } loc(#loc1)
+} loc(#loc1)
+{-#
+  dialect_resources: { builtin: { w: "0x0400" } }
+#-}
+"""
+
+
+def test_mlir_static_parse():
+    """NameLocs through aliases and multi-line ops; fused keys count under each; absent
+    runtime keys are reported as eliminated."""
+    import os
+    import tempfile
+    from xnnprof.collect.mlir_static import MlirStaticCollector, level_stats, parse_mlir
+
+    p = parse_mlir(MLIR_SAMPLE)
+    names = [n for n, _, _ in p["ops"]]
+    assert names.count("linalg.generic") == 1 and "builtin.module" not in names
+    generic = next(k for n, k, _ in p["ops"] if n == "linalg.generic")
+    assert generic == {"fc2@t1"}, "location after the closing brace belongs to the op"
+    st = level_stats(p, "bufferized")
+    assert st["per_key"]["fc2@t0"]["linalg.matmul"] == 1
+    assert st["alloc_bytes"]["fc2@t0"] == 80 and st["global_bytes"] == 320
+    assert st["shared"]["lif1@t0"]["arith.constant"] == 1, "fused location"
+    assert p["attrs"]["provenance"]["timesteps"] == 4
+
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "m.bufferized.mlir"), "w") as f:
+        f.write(MLIR_SAMPLE)
+    t = sample()
+    src = MlirStaticCollector(d).collect(t)
+    assert src.status == "partial" and "LLVM IR" in src.reason, src
+    assert t.region("fc2", 0).ir["bufferized"] == {"ops": 3, "shared_ops": 1}
+    assert t.region("fc2", 2).ir["bufferized"] == {"ops": 0, "eliminated": True}
+    assert "fc2@t3" in src.detail["eliminated"]["bufferized"]["keys"]
+    assert t.layer("fc2").extra["ir"]["bufferized"]["eliminated_steps"] == 2
+    assert t.ir_levels[0].level == "bufferized" and t.ir_levels[0].static_memory_kb == 0.31
+    print("  MLIR static attribution OK")
+
+
 if __name__ == "__main__":
     for fn in (test_snn_metrics, test_label_join, test_layer_id_normalization,
                test_trace_event_format, test_roundtrip, test_sources_declare_limits,
@@ -377,6 +432,6 @@ if __name__ == "__main__":
                test_nsys_projection, test_nsys_stale_sqlite,
                test_op_tree_cap_keeps_first_level,
                test_summary_gpu_key_distinct, test_perf_csv_parse,
-               test_ncu_aggregate):
+               test_ncu_aggregate, test_mlir_static_parse):
         fn()
     print("\nall contract tests passed")

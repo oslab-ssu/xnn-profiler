@@ -11,7 +11,7 @@ from .collect.base import Collector
 from .collect.ncu import NcuCollector
 from .collect.nsys import NsysCollector
 from .collect.perf import PerfCollector
-from .collect.stubs import ALL as STUB_COLLECTORS
+from .collect.mlir_static import MlirStaticCollector
 from .collect.torch_hooks import TorchHookCollector
 from .collect.torch_prof import TorchProfilerCollector
 from .emit import trace_json
@@ -45,7 +45,7 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
             emit_nvtx: bool = False, cover_leaves: bool = False,
             sync_regions: bool = False, membrane: bool = True,
             op_tree: bool = True, full_trace: bool = True,
-            with_stack: bool = False, perf_reps: int = 0,
+            with_stack: bool = False, perf_reps: int = 0, mlir_dir: str = "",
             extra: tuple[Collector, ...] = (), **forward_kw: Any) -> Trace:
     """One measurement.
 
@@ -122,9 +122,8 @@ def profile(model, inputs, *, model_id: str, timesteps: Optional[int] = None,
         trace.sources.append(perf.collect(trace))
     if NcuCollector.name not in named:
         trace.sources.append(NcuCollector().collect(trace))
-    for cls in STUB_COLLECTORS:
-        if cls.name not in named:
-            trace.sources.append(cls().collect(trace))
+    if MlirStaticCollector.name not in named:
+        trace.sources.append(MlirStaticCollector(mlir_dir).collect(trace))
     for c in extra:
         trace.sources.append(c.collect(trace))
 

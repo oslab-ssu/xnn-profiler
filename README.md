@@ -48,6 +48,7 @@ tools/xnnprof --model fcsnn --device cuda --weights weights --out out-gpu
 | `--no-membrane` | Disabled | Disable membrane potential distribution collection. Enable this option when measuring host synchronization overhead (see notes below) |
 | `--no-full-trace` | Disabled | Disable the execution-wide operator trace. Operations outside registered profiling regions will not be captured |
 | `--nsys` | Disabled | Run profiling under `nsys profile` and automatically merge the generated report into the trace |
+| `--mlir DIR` | None | Read `tools/mlir_export` artifacts from `DIR/<model>/` and attribute IR op counts to layers and regions |
 | `--ncu` | Disabled | Run profiling under Nsight Compute and merge per-kernel hardware counters into regions. Single model only; implies `--no-torch-profiler`; cannot be combined with `--nsys` |
 | `--with-stack` | Disabled | Capture Python call stacks. Increases execution-wide track depth from 6 to 19, output file size by approximately 3x, and execution time by 2.5–3.4x |
 | `--no-op-tree` | Disabled | Disable the operator call hierarchy within profiling regions. The operator hierarchy is required for Flame Graph visualization |
@@ -266,6 +267,26 @@ Caveats, also recorded in the `nsight_compute` source:
 - `flops_fp32` counts what the kernel executed, including tile padding. In `fcsnn`, `fc1` executes 1.05x and `fc2` (10 outputs) 3.3x the model's `2·MAC`.
 - A metric the GPU did not report is listed in `metrics_missing` and the source becomes `partial`; it is never stored as 0.
 - Needs GPU performance counter access: run as root, or load the NVIDIA driver with `NVreg_RestrictProfilingToAdminUsers=0`. Otherwise ncu fails with `ERR_NVGPUCTRPERM`.
+
+## Static IR Analysis with MLIR
+
+`tools/mlir_export` compiles each model with torch-mlir, following the lowering used in `oslab-ssu/mlir-profiler`: `torch.export` -> linalg-on-tensors -> one-shot bufferization -> LLVM dialect. It needs its own environment, because torch-mlir requires a newer PyTorch than the measuring environment:
+
+```bash
+python3.12 -m venv ../mlir-venv
+../mlir-venv/bin/pip install <torch_mlir wheel from mlir-profiler/requirements.txt>
+../mlir-venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+../mlir-venv/bin/pip install snntorch==0.9.4          # same as the measuring environment
+MLIR_RUNNER_UTILS=/path/to/libmlir_c_runner_utils.so \
+  ../mlir-venv/bin/python tools/mlir_export --model all --weights weights --out ../out-mlir
+tools/xnnprof --model all --train 0 --weights weights --out out --mlir ../out-mlir
+```
+
+- Every IR op carries a NameLoc `layer@tN`, chosen with the hooks' own targeting rule and torch.export's per-module call index, so IR ops, NVTX ranges and regions share one key.
+- The LLVM dialect module is executed with the MLIR ExecutionEngine on a fixed input and compared with PyTorch. `fcsnn` and `repeated_dnn_snn` give identical spike counts; `mnist_mlp` logits differ by at most 1.7e-6. The result and the export provenance (torch and torch-mlir versions, pipelines, input order) are stored as `xnn.*` attributes inside each file.
+- The `mlir_static` source fills `ir_levels` (op counts and static memory per level), `layers[].extra.ir` (per layer), and `args.ir` on each region. A region that ran but has no ops at a level was removed by the compiler and is marked `eliminated`. In `fcsnn`, `fc1@t1`..`fc1@t9` are eliminated: the input is the same image every step, so CSE keeps a single `fc1`.
+- snntorch keeps `reset_mechanism_val` as a tensor buffer and branches on it in Python, which `torch.export` rejects. The exporter replaces such 0-dim integer `*_val` buffers on the module instance with Python ints; the model code is not changed, and the list is recorded in the provenance.
+- LLVM IR (`.ll`) needs `mlir-translate` from the same LLVM as torch-mlir (`--translate` or `MLIR_TRANSLATE`). Older versions cannot parse the LLVM dialect torch-mlir prints (Ubuntu's MLIR 20 fails on `getelementptr inbounds|nuw`). Without it the source is `partial` and op counts stop at the LLVM dialect.
 
 ## Profiling Overhead
 

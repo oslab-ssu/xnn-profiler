@@ -222,6 +222,9 @@ def main() -> int:
                     help="count N forwards (hooks and profiler detached) with perf stat. "
                          "Values are process-wide and not attributed to layers. Linux only, "
                          "needs kernel.perf_event_paranoid<=2")
+    ap.add_argument("--mlir", default="", metavar="DIR",
+                    help="tools/mlir_export output directory; <DIR>/<model>/ is read for "
+                         "static op counts per layer and step")
     args = ap.parse_args()
 
     if args.nsys and args.ncu:
@@ -272,6 +275,7 @@ def main() -> int:
                         op_tree=not args.no_op_tree,
                         full_trace=not args.no_full_trace,
                         with_stack=args.with_stack, perf_reps=args.perf,
+                        mlir_dir=os.path.join(args.mlir, name) if args.mlir else "",
                         with_torch_profiler=not args.no_torch_profiler, **fkw)
         trace.env["weights"] = origin
         trace.env["weights_sha256"] = digest
