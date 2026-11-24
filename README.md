@@ -290,6 +290,23 @@ tools/xnnprof --model all --train 0 --weights weights --out out --mlir ../out-ml
 - LLVM IR (`.ll`) needs `mlir-translate` from the same LLVM as torch-mlir (`--translate` or `MLIR_TRANSLATE`). Older versions cannot parse the LLVM dialect torch-mlir prints (Ubuntu's MLIR 20 fails on `getelementptr inbounds|nuw`). torch-mlir `20260401.769` pins llvm-project `977355be38d1`; building only `mlir-opt mlir-translate mlir_c_runner_utils mlir_runner_utils` from that commit (`-DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD=host`) took about 50 minutes on a 6-core i5-8400. The CLI `mlir-opt` from that build gives the same op counts and per-key attribution as the Python pass manager. Without a translator the source is `partial` and op counts stop at the LLVM dialect.
 - `.ll` counts are lower than LLVM dialect counts: `llvm.mlir.constant` becomes an immediate operand and branches are not counted (as in `mlir-profiler`). In `fcsnn` that accounts for 3,067 of the 4,651 difference; `add` and `getelementptr` also drop (1,690 to 1,557 and 1,055 to 904) during translation.
 
+## Cross-Tool Consistency
+
+### `tools/crosscheck`
+
+Shows each layer as seen by the hooks, the MLIR static collector, Nsight Systems and Nsight Compute, and checks per region the values that must agree:
+
+- IR MACs from contraction shapes equal the hooks' executed MACs (regions the compiler eliminated are counted, not checked).
+- ncu kernel count equals nsys kernel count (both use launch-in-range on the same NVTX ranges).
+
+```bash
+tools/xnnprof --model fcsnn --device cuda --train 0 --weights weights --mlir ../out-mlir --nsys --no-torch-profiler --out out-nsys
+tools/xnnprof --model fcsnn --device cuda --train 0 --weights weights --mlir ../out-mlir --ncu --out out-ncu
+tools/crosscheck --nsys out-nsys --ncu out-ncu
+```
+
+On an RTX 2060 SUPER both invariants hold for all 84 regions of the three models. `fcsnn` `fc1` takes 31% of the in-range kernel time (385 of 1,240 us) although the compiler keeps one of its ten calls, and the LIF layers, with no MACs, take 60% (`fcsnn`) and 75% (`repeated_dnn_snn`).
+
 ## Profiling Overhead
 
 ### `tools/overhead`

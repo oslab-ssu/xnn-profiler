@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""crosscheck: one layer as seen by every tool, and the invariants that tie them together.
+
+Reads traces that already carry the hooks, the mlir_static source, and one or both of the
+Nsight merges. Values that must agree are checked per region:
+
+  IR MACs  == hook MACs        static contraction shapes vs what ran (non-eliminated regions)
+  ncu kernels == nsys kernels  both project kernels onto the same NVTX ranges
+
+Other columns are reported side by side, not checked: ncu FP32 operations against 2·MAC
+show padding and non-contraction work; ncu and nsys kernel time differ by design.
+
+  tools/crosscheck --nsys out-nsys4 --ncu out-ncu4
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from collections import defaultdict
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+MODELS = ("mnist_mlp", "fcsnn", "repeated_dnn_snn")
+
+
+def load(d: str, model: str):
+    p = os.path.join(d, model, "xnn-trace.json") if d else ""
+    if not p or not os.path.exists(p):
+        return None
+    with open(p, encoding="utf-8") as f:
+        return json.load(f)["xnn"]
+
+
+def regions(t) -> dict:
+    return {(r["layer_id"], r["timestep"]): r for r in (t or {}).get("regions", [])}
+
+
+def check(model: str, nsys, ncu) -> int:
+    base = nsys or ncu
+    layers = {l["layer_id"]: l for l in base["layers"]}
+    rn, rc = regions(nsys), regions(ncu)
+    rb = regions(base)
+    agg = defaultdict(lambda: defaultdict(float))
+    fails = []
+    for key, r in rb.items():
+        lid = key[0]
+        a = agg[lid]
+        layer = layers[lid]
+        per_call = layer["macs"] // layer["calls"] if layer["calls"] else 0
+        ir = (r.get("ir") or {}).get("linalg") or {}
+        if ir.get("eliminated"):
+            a["eliminated"] += 1
+        elif per_call and "macs" in ir and ir["macs"] != per_call:
+            fails.append(f"{lid}@t{key[1]}: IR MACs {ir['macs']:,} != hook MACs {per_call:,}")
+        a["ir_macs"] += ir.get("macs", 0)
+        g = (rn.get(key) or {}).get("gpu") or {}
+        c = (rc.get(key) or {}).get("ncu") or {}
+        if g and c and g.get("kernels") != c.get("kernels"):
+            fails.append(f"{lid}@t{key[1]}: ncu kernels {c.get('kernels')} != "
+                         f"nsys kernels {g.get('kernels')}")
+        a["nsys_us"] += g.get("kernel_us", 0)
+        a["kernels"] += c.get("kernels", g.get("kernels", 0))
+        a["ncu_us"] += c.get("kernel_us", 0)
+        a["flops"] += c.get("flops_fp32", 0)
+        a["dram"] += c.get("dram_read_bytes", 0) + c.get("dram_write_bytes", 0)
+        a["sm_w"] += c.get("sm_throughput_pct", 0) * c.get("kernel_us", 0)
+
+    src = next((s for s in base["sources"] if s["collector"] == "mlir_static"), {})
+    print(f"== {model}  (mlir_static {src.get('status', 'missing')})")
+    print(f"  {'layer':16s} {'calls':>5s} {'MACs run':>13s} {'MACs IR':>13s} {'elim':>4s} "
+          f"{'kern':>5s} {'nsys us':>9s} {'ncu us':>9s} {'FLOP/2MAC':>9s} {'FLOP/B':>7s} {'SM%':>5s}")
+    for lid, l in layers.items():
+        a = agg[lid]
+        flop_mac = a["flops"] / (2 * l["macs"]) if l["macs"] and a["flops"] else None
+        ai = a["flops"] / a["dram"] if a["dram"] else None
+        sm = a["sm_w"] / a["ncu_us"] if a["ncu_us"] else None
+        fmt = lambda v, f: format(v, f) if v is not None else "-"          # noqa: E731
+        print(f"  {lid:16s} {l['calls']:5d} {l['macs']:13,} {int(a['ir_macs']):13,} "
+              f"{int(a['eliminated']):4d} {int(a['kernels']):5d} {a['nsys_us']:9.1f} "
+              f"{a['ncu_us']:9.1f} {fmt(flop_mac, '9.2f'):>9s} {fmt(ai, '7.2f'):>7s} "
+              f"{fmt(sm, '5.1f'):>5s}")
+    checked = sum(1 for r in rb.values() if r.get("ir"))
+    if fails:
+        print(f"  FAIL {len(fails)}")
+        for f in fails[:10]:
+            print(f"    {f}")
+    else:
+        print(f"  invariants hold over {len(rb)} regions "
+              f"({checked} with IR, {sum(1 for k in rb if k in rn and k in rc)} with nsys+ncu)")
+    return len(fails)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--nsys", default="", help="output directory of a --nsys run")
+    ap.add_argument("--ncu", default="", help="output directory of a --ncu run")
+    ap.add_argument("--models", default=",".join(MODELS))
+    args = ap.parse_args()
+    bad = 0
+    for m in args.models.split(","):
+        nsys, ncu = load(args.nsys, m), load(args.ncu, m)
+        if nsys is None and ncu is None:
+            print(f"== {m}: no trace")
+            continue
+        bad += check(m, nsys, ncu)
+        print()
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
